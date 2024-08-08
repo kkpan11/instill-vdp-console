@@ -36,7 +36,12 @@ const navLinkItems: NavLinkProps[] = [
     strict: true,
   },
   {
-    pathname: "dashboard/pipeline",
+    pathname: "catalog",
+    Icon: Icons.Database01,
+    title: "Artifacts",
+  },
+  {
+    pathname: "dashboard",
     Icon: Icons.BarChartSquare02,
     title: "Dashboard",
   },
@@ -133,6 +138,7 @@ export const NavLinks = ({ isExploreRoute }: { isExploreRoute?: boolean }) => {
               Icon={Icon}
               title={title}
               isExploreRoute={isExploreRoute}
+              strict={true}
             />
           ))
         : null}

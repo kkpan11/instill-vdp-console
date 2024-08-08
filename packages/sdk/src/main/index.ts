@@ -2,6 +2,7 @@ import "whatwg-fetch";
 
 import {
   CreditClient,
+  MembershipClient,
   MetricClient,
   OrganizationClient,
   SubscriptionClient,
@@ -10,11 +11,14 @@ import {
   UtilsClient,
 } from "../core";
 import { ModelClient } from "../model";
-import { GeneralRecord, HttpMethod } from "../types";
-import { ComponentClient, PipelineClient } from "../vdp";
-import { ReleaseClient } from "../vdp/release";
-import { SecretClient } from "../vdp/secret";
-import { TriggerClient } from "../vdp/trigger";
+import { GeneralRecord, HttpMethod, InstillError } from "../types";
+import {
+  ComponentClient,
+  PipelineClient,
+  ReleaseClient,
+  SecretClient,
+  TriggerClient,
+} from "../vdp";
 
 export type RequestOption = {
   body?: string;
@@ -85,7 +89,15 @@ export class InstillAPIClient {
         if (this.debug) {
           console.error(response);
         }
-        throw new Error(`Failed to fetch ${path}`);
+
+        if (response.status === 404) {
+          return Promise.reject(new InstillError("Not Found", 404));
+        }
+
+        const error = await response.json();
+        return Promise.reject(
+          new InstillError(error.message, response.status, error),
+        );
       }
 
       if (method === "DELETE") {
@@ -115,6 +127,7 @@ export class InstillAPIClient {
     subscription: new SubscriptionClient(this),
     credit: new CreditClient(this),
     utils: new UtilsClient(this),
+    membership: new MembershipClient(this),
   };
 
   model = new ModelClient(this);

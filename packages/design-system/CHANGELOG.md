@@ -1,5 +1,20 @@
 # @instill-ai/design-system
 
+## [0.75.0](https://github.com/instill-ai/console/compare/@instill-ai/design-system-v0.74.0...@instill-ai/design-system-v0.75.0) (2024-08-02)
+
+
+### Features
+
+* add icons ([#1336](https://github.com/instill-ai/console/issues/1336)) ([a7fc200](https://github.com/instill-ai/console/commit/a7fc200e269503e10a982db0e5a82c519741fdf6))
+* Catalog MVP ([#1340](https://github.com/instill-ai/console/issues/1340)) ([746793a](https://github.com/instill-ai/console/commit/746793a075a4e2aae3a642d8e3a4ae8701ea9fb5))
+
+## [0.74.0](https://github.com/instill-ai/console/compare/@instill-ai/design-system-v0.73.1...@instill-ai/design-system-v0.74.0) (2024-07-31)
+
+
+### Features
+
+* add integration test for SDK ([#1315](https://github.com/instill-ai/console/issues/1315)) ([d247ec9](https://github.com/instill-ai/console/commit/d247ec9a539dd258530d1286c191ede3131014f0))
+
 ## [0.73.1](https://github.com/instill-ai/console/compare/@instill-ai/design-system-v0.73.0...@instill-ai/design-system-v0.73.1) (2024-07-17)
 
 

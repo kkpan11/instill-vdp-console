@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Visibility } from "instill-sdk";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -36,7 +37,6 @@ import {
   useModelRegions,
   useRouteInfo,
   useShallow,
-  Visibility,
 } from "../../lib";
 import { FieldDescriptionTooltip } from "../../lib/use-instill-form/components/common";
 import { useUserNamespaces } from "../../lib/useUserNamespaces";
@@ -53,7 +53,7 @@ const CreateModelSchema = z
     description: z.string().optional(),
     visibility: z
       .enum(InstillModelVisibility)
-      .default(InstillModelVisibility[0]),
+      .default(InstillModelVisibility[1]),
     region: z.string(),
     hardware: z.string(),
     hardwareCustom: z.string().optional(),
@@ -188,7 +188,7 @@ export const CreateModelForm = () => {
     const payload: CreateUserModelPayload = {
       id: data.id,
       description: data.description,
-      visibility: data.visibility,
+      visibility: data.visibility ?? "VISIBILITY_PUBLIC",
       region: data.region,
       hardware:
         data.hardware === "Custom" ? data.hardwareCustom || "" : data.hardware,
@@ -393,6 +393,7 @@ export const CreateModelForm = () => {
                   );
                 }}
               />
+              {/* INS-5438: We tempoarily hide the private option for better visibility */}
               <RadioGroup.Root
                 onValueChange={(
                   value: Exclude<Visibility, "VISIBILITY_UNSPECIFIED">,
@@ -400,7 +401,7 @@ export const CreateModelForm = () => {
                   form.setValue("visibility", value);
                 }}
                 className="!flex flex-col gap-y-4"
-                defaultValue={InstillModelVisibility[0]}
+                defaultValue={InstillModelVisibility[1]}
               >
                 <div className="flex items-center space-x-3">
                   <label
@@ -423,7 +424,7 @@ export const CreateModelForm = () => {
                     </div>
                   </label>
                 </div>
-                <div className="flex items-center space-x-3">
+                {/* <div className="flex items-center space-x-3">
                   <label
                     htmlFor="radio-private"
                     className="flex flex-row gap-x-3"
@@ -444,7 +445,7 @@ export const CreateModelForm = () => {
                       </p>
                     </div>
                   </label>
-                </div>
+                </div> */}
               </RadioGroup.Root>
               <Form.Field
                 control={form.control}

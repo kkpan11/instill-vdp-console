@@ -293,6 +293,7 @@ export const ModelSettingsEditForm = ({
               form={form}
               title="Cover image"
             />
+            {/* INS-5438: We tempoarily hide the private option for better visibility */}
             <RadioGroup.Root
               onValueChange={(
                 value: Exclude<Visibility, "VISIBILITY_UNSPECIFIED">,
@@ -300,7 +301,7 @@ export const ModelSettingsEditForm = ({
                 form.setValue("visibility", value);
               }}
               className="!flex flex-col gap-y-4"
-              defaultValue={model?.visibility || InstillModelVisibility[0]}
+              defaultValue={model?.visibility || InstillModelVisibility[1]}
             >
               <div className="flex items-center space-x-3">
                 <label htmlFor="radio-public" className="flex flex-row gap-x-3">
@@ -320,7 +321,7 @@ export const ModelSettingsEditForm = ({
                   </div>
                 </label>
               </div>
-              <div className="flex items-center space-x-3">
+              {/* <div className="flex items-center space-x-3">
                 <label
                   htmlFor="radio-private"
                   className="flex flex-row gap-x-3"
@@ -340,7 +341,7 @@ export const ModelSettingsEditForm = ({
                     </p>
                   </div>
                 </label>
-              </div>
+              </div> */}
             </RadioGroup.Root>
             <Form.Field
               control={form.control}

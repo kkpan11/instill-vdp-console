@@ -30,10 +30,12 @@ import {
   sendAmplitudeData,
   toastInstillError,
   useAmplitudeCtx,
+  useAuthenticatedUser,
   useComponentOutputFields,
   useInstillForm,
   useInstillStore,
   useLastModelTriggerResult,
+  useNavigateBackAfterLogin,
   useQueryClient,
   useShallow,
   useTriggerUserModelAsync,
@@ -120,6 +122,13 @@ export const ModelPlayground = ({
     useState<ModelTriggerResult["operation"]>(null);
   const { accessToken, enabledQuery, navigationNamespaceAnchor } =
     useInstillStore(useShallow(selector));
+
+  const navigateBackAfterLogin = useNavigateBackAfterLogin();
+
+  const me = useAuthenticatedUser({
+    enabled: enabledQuery,
+    accessToken,
+  });
 
   const namespaces = useUserNamespaces();
 
@@ -305,7 +314,9 @@ export const ModelPlayground = ({
       });
 
       if (amplitudeIsInit) {
-        sendAmplitudeData("trigger_model");
+        sendAmplitudeData("trigger_model", {
+          page_url: window.location.href,
+        });
       }
 
       currentOperationIdPollingData.current = {
@@ -355,19 +366,33 @@ export const ModelPlayground = ({
           >
             <div className="mb-5 flex flex-col gap-y-5">{fields}</div>
             <div className="flex flex-row-reverse">
-              <Button
-                disabled={!isModelTriggerable || isModelRunInProgress}
-                type="submit"
-                size="md"
-                variant="secondaryColour"
-              >
-                Run
-                {isModelRunInProgress ? (
-                  <LoadingSpin className="ml-2 !h-4 !w-4 !text-semantic-accent-hover" />
-                ) : (
-                  <Icons.Play className="ml-2 h-4 w-4 stroke-semantic-accent-hover" />
-                )}
-              </Button>
+              {me.isSuccess ? (
+                <Button
+                  disabled={!isModelTriggerable || isModelRunInProgress}
+                  type="submit"
+                  size="md"
+                  variant="secondaryColour"
+                >
+                  Run
+                  {isModelRunInProgress ? (
+                    <LoadingSpin className="ml-2 !h-4 !w-4 !text-semantic-accent-hover" />
+                  ) : (
+                    <Icons.Play className="ml-2 h-4 w-4 stroke-semantic-accent-hover" />
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    navigateBackAfterLogin();
+                  }}
+                  className="!h-8 !normal-case"
+                  variant="secondaryColour"
+                  size="md"
+                >
+                  Log in to Run
+                </Button>
+              )}
             </div>
           </form>
         </Form.Root>
