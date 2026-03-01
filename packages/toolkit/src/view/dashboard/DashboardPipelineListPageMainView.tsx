@@ -1,5 +1,9 @@
 "use client";
 
+import type {
+  PipelineTriggerChartRecord,
+  PipelineTriggerTableRecord,
+} from "instill-sdk";
 import * as React from "react";
 
 import { SelectOption } from "@instill-ai/design-system";
@@ -11,16 +15,14 @@ import {
   getPreviousTimeframe,
   getTimeInRFC3339Format,
   Nullable,
-  PipelinesChart,
-  TriggeredPipeline,
   usePipelineTriggerComputationTimeCharts,
   usePipelineTriggerMetric,
   useRouteInfo,
 } from "../../lib";
+import { PipelineTriggerCountsLineChart } from "./activity/PipelineTriggerCountsLineChart";
+import { PipelineTriggersSummary } from "./activity/PipelineTriggersSummary";
 import { DashboardPipelinesTable } from "./DashboardPipelinesTable";
 import { FilterByDay } from "./FilterByDay";
-import { PipelineTriggerCountsLineChart } from "./PipelineTriggerCountsLineChart";
-import { PipelineTriggersSummary } from "./PipelineTriggersSummary";
 
 export type DashboardPipelineListPageMainViewProps = GeneralAppPageProp;
 
@@ -83,18 +85,21 @@ export const DashboardPipelineListPageMainView = (
     enabled: enableQuery && !!queryString,
     filter: queryString ? queryString : null,
     accessToken,
+    requesterId: routeInfo.data.namespaceId ?? undefined,
   });
 
   const pipelinesChart = usePipelineTriggerComputationTimeCharts({
     enabled: enableQuery && !!queryString,
     filter: queryString ? queryString : null,
     accessToken,
+    requesterId: routeInfo.data.namespaceId ?? undefined,
   });
 
   const previoustriggeredPipelines = usePipelineTriggerMetric({
     enabled: enableQuery && !!queryStringPrevious,
     filter: queryStringPrevious ? queryStringPrevious : null,
     accessToken,
+    requesterId: routeInfo.data.namespaceId ?? undefined,
   });
 
   // Guard this page
@@ -114,7 +119,7 @@ export const DashboardPipelineListPageMainView = (
     previoustriggeredPipelines.isError,
   ]);
 
-  const pipelinesChartList = React.useMemo<PipelinesChart[]>(() => {
+  const pipelinesChartList = React.useMemo<PipelineTriggerChartRecord[]>(() => {
     if (!pipelinesChart.isSuccess) {
       return [];
     }
@@ -126,7 +131,9 @@ export const DashboardPipelineListPageMainView = (
     return chartList;
   }, [pipelinesChart.data, pipelinesChart.isSuccess]);
 
-  const triggeredPipelineList = React.useMemo<TriggeredPipeline[]>(() => {
+  const triggeredPipelineList = React.useMemo<
+    PipelineTriggerTableRecord[]
+  >(() => {
     if (!triggeredPipelines.isSuccess) {
       return [];
     }
@@ -166,7 +173,7 @@ export const DashboardPipelineListPageMainView = (
   return (
     <div className="flex flex-col">
       <h2 className="mb-10 w-full text-3xl font-semibold leading-[38px] text-semantic-fg-primary">
-        Pipeline Triggers
+        Pipeline Runs
       </h2>
 
       {/* Status */}
@@ -214,6 +221,7 @@ export const DashboardPipelineListPageMainView = (
           isLoading={pipelinesChart.isLoading}
           pipelines={pipelinesChart.isSuccess ? pipelinesChartList : []}
           selectedTimeOption={selectedTimeOption}
+          pipelineTriggersSummary={null}
         />
       </div>
 

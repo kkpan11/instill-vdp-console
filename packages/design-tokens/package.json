@@ -1,9 +1,13 @@
 {
   "name": "@instill-ai/design-tokens",
-  "version": "0.7.0",
+  "version": "0.10.4",
   "description": "Instill AI's design tokens",
-  "repository": "https://github.com/instill-ai/design-system.git",
-  "bugs": "https://github.com/instill-ai/design-system/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/instill-ai/console.git",
+    "directory": "packages/design-tokens"
+  },
+  "bugs": "https://github.com/instill-ai/console/issues",
   "keywords": [
     "instill-ai",
     "design-system",
@@ -15,10 +19,10 @@
     "build": "pnpm build-sd && pnpm build-tw && pnpm build-css-variables",
     "ts-types": "tsc --emitDeclarationOnly",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx --cache",
-    "dev": "tsx ./buildStyleDictionary.ts",
     "build-sd": "tsx ./src/buildSDTokens.ts",
     "build-tw": "tsx ./src/buildTailwindPreset.ts",
-    "build-css-variables": "tsx ./src/buildCSSVariables.ts"
+    "build-css-variables": "tsx ./src/buildCSSVariables.ts",
+    "publish-rc": "pnpm build && pnpm publish --no-git-checks --tag rc"
   },
   "sideEffects": [
     "**/*.css"
@@ -33,14 +37,15 @@
     "@instill-ai/eslint-config-cortex": "workspace:*",
     "@instill-ai/prettier-config-cortex": "workspace:*",
     "@testing-library/jest-dom": "^6.2.1",
-    "@types/node": "^18.14.1",
+    "@types/node": "catalog:",
     "@vitejs/plugin-react": "^4.3.0",
     "postcss-import": "^15.1.0",
     "rimraf": "^3.0.2",
-    "tailwindcss": "^3.3.2",
-    "tsx": "^4.6.2",
-    "typescript": "^5.4.2",
-    "vitest": "^1.6.0"
+    "tailwindcss": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "^2.1.9",
+    "eslint": "catalog:"
   },
   "publishConfig": {
     "access": "public"
@@ -51,7 +56,7 @@
     "style-dictionary": "^3.8.0"
   },
   "peerDependencies": {
-    "tailwindcss": "^3.3.0"
+    "tailwindcss": "catalog:"
   },
   "lint-staged": {
     "**/*.{js,jsx,ts,tsx}": [

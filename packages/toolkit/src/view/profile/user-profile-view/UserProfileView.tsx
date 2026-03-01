@@ -8,12 +8,12 @@ import {
   InstillStore,
   useAuthenticatedUser,
   useInstillStore,
+  useNamespaceModels,
   useNamespacePipelines,
   useRouteInfo,
   useShallow,
   useUser,
 } from "../../../lib";
-import { useUserModels } from "../../../lib/react-query-service/model/useUserModels";
 import { ModelsTable } from "../../model";
 import { PipelinesTable } from "../../pipeline";
 import { ProfileSeparator } from "../ProfileSeparator";
@@ -36,7 +36,7 @@ export const UserProfileView = () => {
   });
 
   const user = useUser({
-    userName: routeInfo.data.namespaceName,
+    userId: routeInfo.data.namespaceId,
     accessToken: accessToken,
     enabled:
       enabledQuery &&
@@ -46,17 +46,18 @@ export const UserProfileView = () => {
   });
 
   const pipelines = useNamespacePipelines({
-    namespaceName: routeInfo.isSuccess ? routeInfo.data.namespaceName : null,
+    namespaceId: routeInfo.isSuccess ? routeInfo.data.namespaceId : null,
     accessToken: accessToken,
     enabled: enabledQuery && routeInfo.isSuccess,
     filter: null,
     visibility: null,
+    view: null,
   });
 
-  const models = useUserModels({
+  const models = useNamespaceModels({
     accessToken: accessToken,
     enabled: enabledQuery && routeInfo.isSuccess,
-    userName: routeInfo.isSuccess ? routeInfo.data.namespaceName : null,
+    namespaceId: routeInfo.isSuccess ? routeInfo.data.namespaceId : null,
     filter: null,
     visibility: null,
   });
@@ -81,14 +82,13 @@ export const UserProfileView = () => {
             name={user.data?.profile?.displayName ?? user.data.id}
             bio={user.data.profile?.bio ?? null}
             avatar={user.data.profile?.avatar ?? null}
-            userMemberships={null}
             isOwner={
               me.isSuccess &&
               routeInfo.isSuccess &&
               me.data.id === String(routeInfo.data.namespaceId)
             }
-            twitterLink={user.data.profile?.socialProfilesLinks?.x ?? null}
-            githubLink={user.data.profile?.socialProfilesLinks?.github ?? null}
+            twitterLink={user.data.profile?.socialProfileLinks?.x ?? null}
+            githubLink={user.data.profile?.socialProfileLinks?.github ?? null}
             displayName={user.data.profile?.displayName ?? null}
           />
         ) : (

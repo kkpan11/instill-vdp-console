@@ -1,4 +1,9 @@
 export { InstillAPIClient } from "./main";
-export type * from "./core";
+export { APIResource } from "./main/resource";
+export type * from "./mgmt";
 export type * from "./model";
-export type * from "./vdp";
+export type * from "./pipeline";
+export * from "./types";
+export * from "./helper";
+export type * from "./artifact";
+export * from "./pipeline/trigger/streamHelpers";

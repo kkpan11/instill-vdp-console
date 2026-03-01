@@ -1,8 +1,12 @@
 {
   "name": "instill-sdk",
-  "version": "0.3.0-rc.0",
+  "version": "0.18.15",
   "description": "Instill AI's Typescript SDK",
-  "repository": "https://github.com/instill-ai/typescript-sdk.git",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/instill-ai/console.git",
+    "directory": "packages/sdk"
+  },
   "bugs": "https://github.com/instill-ai/community/issues",
   "keywords": [
     "instill-ai",
@@ -45,17 +49,18 @@
     "@instill-ai/tsconfig": "workspace:*",
     "@types/lodash": "^4.17.7",
     "@types/whatwg-fetch": "^0.0.33",
-    "@vitest/coverage-istanbul": "^2.0.4",
+    "@vitest/coverage-istanbul": "^3.2.4",
     "dotenv": "^16.0.1",
-    "lodash": "^4.17.21",
+    "eslint": "catalog:",
+    "lodash": "^4.17.23",
     "msw": "^2.3.2",
     "msw-auto-mock": "^0.25.0",
     "oazapfts": "^6.1.0",
     "swagger2openapi": "^7.0.8",
-    "tsup": "^8.1.0",
-    "tsx": "^4.6.2",
-    "vitest": "^2.0.4",
-    "zod": "^3.23.8"
+    "tsup": "catalog:",
+    "tsx": "catalog:",
+    "vitest": "^3.2.4",
+    "zod": "catalog:"
   },
   "publishConfig": {
     "access": "public"
@@ -65,11 +70,5 @@
     "json-schema": "^0.4.0",
     "openapi-types": "^12.1.3",
     "whatwg-fetch": "^3.6.20"
-  },
-  "pnpm": {
-    "overrides": {
-      "braces": "^3.0.3",
-      "ws": "8.17.1"
-    }
   }
 }

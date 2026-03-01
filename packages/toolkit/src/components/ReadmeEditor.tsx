@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import Markdown from "markdown-to-jsx";
 
 import { Button, cn, Icons, ToggleGroup } from "@instill-ai/design-system";
 
 import { debounce } from "../lib";
+import { MarkdownViewer } from "../lib/markdown";
 import { MarkdownEditor } from "./";
 
 type ViewMode = "view" | "edit";
@@ -71,11 +71,14 @@ export const ReadmeEditor = ({
 
   const renderMarkdown = () => {
     return (
-      <div className="markdown-body w-full overflow-x-auto p-6">
-        <Markdown options={{ disableParsingRawHTML: true }}>
-          {content || placeholder || ""}
-        </Markdown>
-      </div>
+      <MarkdownViewer
+        markdown={content || placeholder || ""}
+        skipHtml
+        className="!overflow-x-auto !rounded-none !p-6"
+        style={{
+          height: `calc(100vh - ${editorTopOffset + 32}px)`,
+        }}
+      />
     );
   };
 
@@ -92,47 +95,11 @@ export const ReadmeEditor = ({
         className,
       )}
     >
-      <style jsx={true}>
-        {`
-          .mdxeditor-popup-container {
-            display: none;
-          }
-
-          .markdown-body a {
-            word-break: break-all !important;
-          }
-
-          .markdown-body pre code {
-            white-space: pre-wrap !important;
-          }
-
-          .markdown-body p {
-            white-space: pre-wrap !important;
-          }
-
-          .markdown-body ul > li {
-            white-space: pre-wrap !important;
-          }
-
-          .markdown-body ol > li {
-            white-space: pre-wrap !important;
-          }
-
-          .markdown-body h1,
-          .markdown-body h2,
-          .markdown-body h3,
-          .markdown-body h4,
-          .markdown-body h5,
-          .markdown-body h6 {
-            white-space: pre-wrap !important;
-          }
-
-          .markdown-body img {
-            max-width: 100%;
-            object-fit: contain;
-          }
-        `}
-      </style>
+      <style jsx>{`
+        .mdxeditor-popup-container {
+          display: none;
+        }
+      `}</style>
       <div
         className="px-3 py-2 h-14 flex flex-row justify-between items-center"
         ref={onMarkdownHeaderMount}
@@ -158,22 +125,8 @@ export const ReadmeEditor = ({
               value={editorMode}
               onValueChange={(value: EditorMode) => setEditorMode(value)}
             >
-              <ToggleGroup.Item
-                value="edit"
-                className={
-                  editorMode === "edit" ? "pointer-events-none" : undefined
-                }
-              >
-                Edit
-              </ToggleGroup.Item>
-              <ToggleGroup.Item
-                value="preview"
-                className={
-                  editorMode === "preview" ? "pointer-events-none" : undefined
-                }
-              >
-                Preview
-              </ToggleGroup.Item>
+              <ToggleGroup.Item value="edit">Edit</ToggleGroup.Item>
+              <ToggleGroup.Item value="preview">Preview</ToggleGroup.Item>
             </ToggleGroup.Root>
             <div className="flex flex-row gap-x-4">
               <Button
@@ -210,7 +163,10 @@ export const ReadmeEditor = ({
             readOnly={!canEdit}
             markdown={content}
             onChange={debouncedUpdateModelReadme}
-            className="bg-semantic-fg-on-default overflow-y-auto h-full [&_.cm-editor]:outline-none [&_.cm-gutters]:bg-semantic-bg-alt-primary [&_.cm-activeLine]:bg-semantic-bg-alt-primary [&_.cm-activeLineGutter]:bg-semantic-bg-alt-primary [&_.cm-tooltip-autocomplete]:bg-semantic-bg-base-bg"
+            className={cn(
+              "bg-semantic-fg-on-default overflow-y-auto h-full [&_.cm-editor]:outline-none [&_.cm-gutters]:bg-semantic-bg-alt-primary [&_.cm-activeLine]:bg-transparent [&_.cm-activeLineGutter]:bg-semantic-bg-alt-primary [&_.cm-tooltip-autocomplete]:bg-semantic-bg-base-bg",
+              "[&_.cm-activeLine]:outline [&_.cm-activeLine]:outline-1 [&_.cm-activeLine]:outline-[#dce7fe]",
+            )}
           />
         </div>
       ) : (

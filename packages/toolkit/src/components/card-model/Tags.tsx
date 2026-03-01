@@ -1,52 +1,54 @@
 "use client";
 
-import React from "react";
+import type { Nullable, Visibility } from "instill-sdk";
 
 import { Icons, Tag } from "@instill-ai/design-system";
-
-import { Visibility } from "../../lib";
 
 export type TagsProps = {
   region: string;
   hardware: string;
-  visibilityStatus: Visibility | null;
+  visibilityStatus: Nullable<Visibility>;
 };
 
 export const Tags = (props: TagsProps) => {
-  const { visibilityStatus, region, hardware } = props;
+  const { region, hardware, visibilityStatus } = props;
 
   return (
-    <div className="flex shrink-0 flex-row gap-x-2">
+    <div className="flex shrink-0 flex-row gap-x-2 mb-2">
       {visibilityStatus ? (
         <Tag
           variant="lightNeutral"
-          size="md"
-          className="gap-x-1.5 rounded-sm !py-0.5"
+          size="sm"
+          className="gap-x-1.5 rounded-full !py-0.5"
         >
           {visibilityStatus === "VISIBILITY_PRIVATE" ? (
-            <React.Fragment>
+            <div className="flex items-center gap-1">
               <Icons.Lock03 className="h-2.5 w-2.5 stroke-semantic-fg-secondary" />
-              Private
-            </React.Fragment>
+              <span className="product-body-text-4-medium text-semantic-fg-secondary">
+                Private
+              </span>
+            </div>
           ) : (
-            <React.Fragment>
+            <div className="flex items-center gap-1">
               <Icons.BookOpen02 className="h-2.5 w-2.5 stroke-semantic-fg-secondary" />
-              Public
-            </React.Fragment>
+              <span className="product-body-text-4-medium text-semantic-fg-secondary">
+                Public
+              </span>
+            </div>
           )}
         </Tag>
       ) : null}
       <Tag
         variant="lightNeutral"
-        size="md"
-        className="gap-x-1.5 rounded-sm !py-0.5"
+        size="sm"
+        className="gap-x-1.5 rounded-full !py-0.5 product-body-text-3-medium text-semantic-fg-primary border border-semantic-bg-line"
       >
         {region}
       </Tag>
       <Tag
         variant="lightNeutral"
-        size="md"
-        className="gap-x-1.5 rounded-sm !py-0.5"
+        size="sm"
+        className="gap-x-1.5 rounded-full !py-0.5 product-body-text-3-medium text-semantic-fg-primary border border-semantic-bg-line"
       >
         <Icons.Chip01 className="h-2.5 w-2.5 stroke-semantic-fg-secondary" />
         {hardware}

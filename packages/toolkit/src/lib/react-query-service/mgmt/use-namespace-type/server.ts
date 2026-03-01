@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 
+import { getInstillAPIClient } from "../../../sdk-helper";
 import { Nullable } from "../../../type";
-import { getInstillAPIClient } from "../../../vdp-sdk";
 
 export async function fetchNamespaceType({
   namespace,
@@ -19,7 +19,7 @@ export async function fetchNamespaceType({
       accessToken: accessToken ?? undefined,
     });
 
-    const type = await client.core.utils.checkNamespaceType({
+    const type = await client.mgmt.utils.checkNamespaceType({
       id: namespace,
     });
 

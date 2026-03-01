@@ -1,19 +1,21 @@
 "use client";
 
-import type { Pipeline } from "instill-sdk";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Nullable } from "instill-sdk";
 
-import type { Nullable } from "../../type";
-import { getInstillAPIClient } from "../../vdp-sdk";
+import { getInstillAPIClient } from "../../sdk-helper";
+import { queryKeyStore } from "../queryKeyStore";
 
 export function useDeleteNamespacePipeline() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      namespacePipelineName,
+      namespaceId,
+      pipelineId,
       accessToken,
     }: {
-      namespacePipelineName: string;
+      namespaceId: string;
+      pipelineId: string;
       accessToken: Nullable<string>;
     }) => {
       if (!accessToken) {
@@ -22,39 +24,32 @@ export function useDeleteNamespacePipeline() {
 
       const client = getInstillAPIClient({ accessToken });
 
-      await client.vdp.pipeline.deleteNamespacePipeline({
-        namespacePipelineName,
+      await client.pipeline.pipeline.deleteNamespacePipeline({
+        namespaceId,
+        pipelineId,
       });
 
-      return Promise.resolve(namespacePipelineName);
+      return Promise.resolve({ namespaceId, pipelineId });
     },
-    onSuccess: (pipelineName) => {
-      // At this stage the pipelineName will be users/<uid>/pipelines/<pid>
-      const pipelineNameArray = pipelineName.split("/");
-      const userName = `${pipelineNameArray[0]}/${pipelineNameArray[1]}`;
-
-      queryClient.invalidateQueries({ queryKey: ["pipelines", "infinite"] });
+    onSuccess: ({ namespaceId }) => {
       queryClient.invalidateQueries({
-        queryKey: ["pipelines", userName, "infinite"],
+        queryKey:
+          queryKeyStore.pipeline.getUseInfiniteAccessiblePipelinesQueryKey({
+            filter: null,
+            visibility: null,
+            view: null,
+            orderBy: null,
+          }),
       });
 
-      queryClient.setQueryData<Pipeline[]>(["pipelines"], (old) =>
-        old ? old.filter((e) => e.name !== pipelineName) : [],
-      );
-
-      queryClient.setQueryData<Pipeline[]>(["pipelines", userName], (old) =>
-        old ? old.filter((e) => e.name !== pipelineName) : [],
-      );
-
-      queryClient.removeQueries({
-        queryKey: ["pipelines", pipelineName],
-        exact: true,
-      });
-
-      // Process watch state
-      queryClient.removeQueries({
-        queryKey: ["pipelines", pipelineName, "watch"],
-        exact: true,
+      queryClient.invalidateQueries({
+        queryKey:
+          queryKeyStore.pipeline.getUseInfiniteNamespacePipelinesQueryKey({
+            namespaceId,
+            filter: null,
+            visibility: null,
+            view: null,
+          }),
       });
     },
   });

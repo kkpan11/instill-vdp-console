@@ -1,23 +1,24 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table";
+import type { APIToken } from "instill-sdk";
 
 import { Button, DataTable } from "@instill-ai/design-system";
 
 import { GeneralStateCell, SortIcon, TableError } from "../../../components";
-import { ApiToken, formatDate, parseTriggerStatusLabel } from "../../../lib";
+import { formatDate, parseTriggerStatusLabel } from "../../../lib";
 import { APITokenNameCell } from "./APITokenNameCell";
 import { DeleteAPITokenDialog } from "./DeleteAPITokenDialog";
 
 export type APITokenTableProps = {
   isError: boolean;
   isLoading: boolean;
-  tokens: ApiToken[];
+  tokens: APIToken[];
 };
 
 export const APITokenTable = (props: APITokenTableProps) => {
   const { isError, isLoading, tokens } = props;
-  const columns: ColumnDef<ApiToken>[] = [
+  const columns: ColumnDef<APIToken>[] = [
     {
       accessorKey: "state",
       header: () => <div className="min-w-[100px] text-left">Status</div>,
@@ -112,7 +113,7 @@ export const APITokenTable = (props: APITokenTableProps) => {
       cell: ({ row }) => {
         return (
           <div className="flex justify-center">
-            <DeleteAPITokenDialog tokenName={row.original.name} />
+            <DeleteAPITokenDialog tokenId={row.original.id} />
           </div>
         );
       },

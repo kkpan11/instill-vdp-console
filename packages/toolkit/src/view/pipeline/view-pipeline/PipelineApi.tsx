@@ -1,3 +1,5 @@
+"use client";
+
 import type {
   Pipeline,
   PipelineRelease,
@@ -27,22 +29,20 @@ export const PipelineApi = ({ pipeline, releases }: PipelineApiProps) => {
   const searchParams = useSearchParams();
   const currentVersion = searchParams.get("version");
 
+  // NOTE: In CE, owner is always a user (organizations are EE-only)
   const owner = React.useMemo(() => {
     if (!pipeline) {
       return OWNER;
     }
 
-    const owner =
-      "user" in pipeline.owner
-        ? pipeline.owner.user
-        : pipeline.owner.organization;
+    const user = pipeline.owner?.user;
 
-    if (!owner || !owner.profile) {
+    if (!user || !user.profile) {
       return OWNER;
     }
 
     return {
-      id: owner.id || "",
+      id: user.id || "",
     };
   }, [pipeline]);
 
@@ -114,7 +114,7 @@ export const PipelineApi = ({ pipeline, releases }: PipelineApiProps) => {
           <CodeString>
             {owner.id}/{pipeline?.id}
           </CodeString>{" "}
-          using Instill API.
+          using API.
         </div>
         <CodeBlock
           codeString={runSnippet}

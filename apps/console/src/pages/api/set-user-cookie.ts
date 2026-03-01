@@ -4,28 +4,40 @@ import type { SetCookiePayload } from "@instill-ai/toolkit/server";
 import { env, removeCookie, setCookie } from "@instill-ai/toolkit/server";
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
-  const { method, body } = req;
+  const { method } = req;
 
   if (method !== "POST") {
+    console.log("Method not allowed");
     res.setHeader("Allow", ["POST"]);
     res.status(405).end(`Method ${method} Not Allowed`);
   }
 
+  if (!env("NEXT_PUBLIC_CONSOLE_BASE_URL")) {
+    console.log("Env CONSOLE_BASE_URL is not provided");
+    return res.status(500).end("Env CONSOLE_BASE_URL is not provided");
+  }
+
+  let body;
+  try {
+    // Try parsing the body as JSON (for fetch requests)
+    body = JSON.parse(req.body);
+  } catch {
+    // If parsing fails, assume it's already an object (for axios requests)
+    body = req.body;
+  }
+
   if (!body.key) {
+    console.log("Key not provided");
     return res.status(500).end("Key not provided");
   }
 
   if (!body.value) {
+    console.log("Value not provided");
     return res.status(500).end("Value not provided");
   }
 
-  if (!env("NEXT_PUBLIC_CONSOLE_BASE_URL")) {
-    return res.status(500).end("Env CONSOLE_BASE_URL is not provided");
-  }
-
-  const targetCookie = req.cookies[body.key];
-
   try {
+    const targetCookie = req.cookies[body.key];
     if (targetCookie) {
       removeCookie({
         res,
@@ -33,12 +45,19 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       });
     }
 
+    // Extract hostname from request for proper domain setting
+    const host = req.headers.host;
+    const hostname = host ? host.split(":")[0] : null;
+
+    // Use localhost for local development, otherwise use the extracted hostname
+    const cookieDomain = hostname === "console" ? "localhost" : null;
+
     const payload: SetCookiePayload = {
       res: res,
       key: body.key,
       value: body.value,
-      secure: env("NEXT_PUBLIC_SET_SECURE_COOKIE") ?? true,
-      domain: null,
+      secure: env("NEXT_PUBLIC_SET_SECURE_COOKIE") ?? false,
+      domain: cookieDomain,
       maxAge: 60 * 60 * 24 * 30,
       httpOnly: true,
     };

@@ -2,8 +2,7 @@
 import { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import { z } from "zod";
 
-import { Organization, OrganizationSchema } from "./core/organization";
-import { User, UserSchema } from "./core/user";
+import { User, UserSchema } from "./mgmt/user";
 
 export type ErrorDetails = {
   "@type": string;
@@ -32,28 +31,6 @@ export const PermissionSchema = z.object({
   canTrigger: z.boolean(),
 });
 
-export type StripeSubscriptionDetail = {
-  productName: string;
-  id: string;
-  itemId: string;
-  price: number;
-  canceledAt?: number;
-  trialEnd?: number;
-  status: StripeSubscriptionStatus;
-  description: string;
-};
-
-export type StripeSubscriptionStatus =
-  | "STATUS_UNSPECIFIED"
-  | "STATUS_INCOMPLETE"
-  | "STATUS_INCOMPLETE_EXPIRED"
-  | "STATUS_TRIALING"
-  | "STATUS_ACTIVE"
-  | "STATUS_PAST_DUE"
-  | "STATUS_CANCELED"
-  | "STATUS_UNPAID"
-  | "STATUS_PAUSED";
-
 export type UserOwner = {
   user: User;
 };
@@ -62,21 +39,21 @@ export const UserOwnerSchema = z.object({
   user: UserSchema,
 });
 
-export type OrganizationOwner = {
-  organization: Organization;
-};
-
-export const OrganizationOwnerSchema = z.object({
-  organization: OrganizationSchema,
-});
+// NOTE: Organization-related types have been moved to EE (console-ee).
+// OrganizationOwner type is no longer available in CE.
 
 export type Nullable<T> = T | null;
 
+export type WithNullableFields<T extends object> = {
+  [P in keyof T]-?: T[P] | null;
+};
+
 export type GeneralRecord = Record<string, any>;
 
-export type Owner = UserOwner | OrganizationOwner;
+// In CE, Owner is just UserOwner (organizations are EE-only)
+export type Owner = UserOwner;
 
-export const OwnerSchema = z.union([UserOwnerSchema, OrganizationOwnerSchema]);
+export const OwnerSchema = UserOwnerSchema;
 
 export type InstillCredentialMap = {
   targets: string[];
@@ -148,7 +125,18 @@ export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 export type Operation = {
   name: string;
-  response?: GeneralRecord;
+  response?: {
+    "@type": string;
+    request: {
+      name: string;
+      taskInputs: GeneralRecord[];
+      version: string;
+    };
+    response: {
+      task: string;
+      taskOutputs: GeneralRecord[];
+    };
+  };
   metadata?: GeneralRecord;
   error?: GeneralRecord;
   done: boolean;
@@ -159,6 +147,14 @@ export type DataSpecification = {
   output: Nullable<InstillJSONSchema>;
 };
 
+export type EventSpecification = {
+  title: string;
+  configSchema: Nullable<InstillJSONSchema>;
+  description: string;
+  messageExamples: GeneralRecord[];
+  messageSchema: Nullable<InstillJSONSchema>;
+};
+
 export const DataSpecificationSchema = z.object({
   input: z.any().nullable(),
   output: z.any().nullable(),
@@ -167,6 +163,7 @@ export const DataSpecificationSchema = z.object({
 export type Spec = {
   componentSpecification: InstillJSONSchema;
   dataSpecifications: Nullable<Record<string, DataSpecification>>;
+  eventSpecifications: Nullable<Record<string, EventSpecification>>;
 };
 
 export const SpecSchema = z.object({
@@ -180,3 +177,31 @@ export const SpecSchema = z.object({
     )
     .nullable(),
 });
+
+export class InstillError extends Error {
+  response?: InstillErrorResponse;
+  status: number;
+
+  constructor(
+    message: string,
+    status: number,
+    response?: InstillErrorResponse,
+  ) {
+    super(message);
+    this.status = status;
+    this.response = response;
+  }
+}
+
+export type InstillErrorResponse = {
+  code: number;
+  message: string;
+  details: ErrorDetails[];
+};
+
+export type FileReference = {
+  name: string;
+  type: string;
+  size: number;
+  url: string;
+};

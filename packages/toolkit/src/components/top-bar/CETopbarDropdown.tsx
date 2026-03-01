@@ -1,14 +1,16 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import {
+  Button,
   ComplicateIcons,
   DropdownMenu,
   Icons,
   Separator,
 } from "@instill-ai/design-system";
 
+import { DOCS_BASE_URL } from "../../constant";
 import {
   InstillStore,
   useAuthenticatedUser,
@@ -25,6 +27,7 @@ const selector = (store: InstillStore) => ({
 });
 
 export const CETopbarDropdown = () => {
+  const router = useRouter();
   const { accessToken, enabledQuery } = useInstillStore(useShallow(selector));
 
   const me = useAuthenticatedUser({
@@ -39,12 +42,13 @@ export const CETopbarDropdown = () => {
       <DropdownMenu.Trigger className="!my-auto !h-10 !w-10">
         <NamespaceAvatarWithFallback.Root
           src={me.data.profile?.avatar ?? null}
-          className="my-auto h-8 w-8 cursor-pointer"
+          refreshKey={me.data.updateTime}
+          className="my-auto h-10 w-10 cursor-pointer"
           fallback={
             <NamespaceAvatarWithFallback.Fallback
               namespaceId={me.data.id}
               displayName={me.data.profile?.displayName ?? null}
-              className="h-8 w-8"
+              className="h-10 w-10"
             />
           }
         />
@@ -58,6 +62,7 @@ export const CETopbarDropdown = () => {
           <div className="flex flex-row gap-x-2">
             <NamespaceAvatarWithFallback.Root
               src={me.data.profile?.avatar ?? null}
+              refreshKey={me.data.updateTime}
               className="my-auto h-10 w-10 cursor-pointer"
               fallback={
                 <NamespaceAvatarWithFallback.Fallback
@@ -72,7 +77,7 @@ export const CETopbarDropdown = () => {
                 {me.data.profile?.displayName}
               </h3>
               <p className="text-semantic-fg-secondary product-body-text-4-regular">
-                {me.data.profile?.publicEmail}
+                {me.data.email}
               </p>
             </div>
           </div>
@@ -133,7 +138,7 @@ export const CETopbarDropdown = () => {
           </TopbarDropdownItem>
           <TopbarDropdownItem asChild>
             <a
-              href="https://www.instill.tech/docs"
+              href={DOCS_BASE_URL}
               className="flex gap-x-2"
               rel="noopener noreferrer"
               target="_blank"
@@ -160,10 +165,15 @@ export const CETopbarDropdown = () => {
         <Separator orientation="horizontal" />
         <TopbarDropdownGroup>
           <TopbarDropdownItem asChild>
-            <Link href="/api/auth/logout" className="flex gap-x-2">
-              <Icons.Logout01 className=" my-auto h-4 w-4 stroke-semantic-fg-disabled" />
+            <Button
+              variant="tertiaryGrey"
+              onClick={() => {
+                router.push("/api/auth/logout");
+              }}
+            >
+              <Icons.Logout01 className="my-auto h-4 w-4 stroke-semantic-fg-disabled" />
               <div className="my-auto">Log out</div>
-            </Link>
+            </Button>
           </TopbarDropdownItem>
         </TopbarDropdownGroup>
       </DropdownMenu.Content>

@@ -9,7 +9,11 @@ export const SettingSidebarRoot = ({
 }: {
   children: React.ReactNode;
 }) => {
-  return <div className="flex flex-col gap-y-1">{children}</div>;
+  return (
+    <div className="flex flex-col h-[calc(100vh-var(--topbar-controller-height)-var(--topbar-nav-height)-var(--setting-container-padding-top)-var(--setting-container-padding-bottom))]">
+      <div className="flex flex-col gap-y-1 mb-auto">{children}</div>
+    </div>
+  );
 };
 
 export const SettingSidebarItem = ({

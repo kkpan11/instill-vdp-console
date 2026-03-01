@@ -1,27 +1,26 @@
+import type { Nullable } from "instill-sdk";
 import { QueryClient } from "@tanstack/react-query";
 
-import { Nullable } from "../../../type";
-import { getInstillAPIClient } from "../../../vdp-sdk";
+import { getInstillAPIClient } from "../../../sdk-helper";
+import { queryKeyStore } from "../../queryKeyStore";
 
 export async function fetchUser({
-  userName,
+  userId,
   accessToken,
 }: {
-  userName: Nullable<string>;
+  userId: Nullable<string>;
   accessToken: Nullable<string>;
 }) {
-  if (!userName) {
-    return Promise.reject(new Error("userName not provided"));
-  }
-
-  if (!accessToken) {
-    return Promise.reject(new Error("accessToken not provided"));
+  if (!userId) {
+    return Promise.reject(new Error("userId is required"));
   }
 
   try {
-    const client = getInstillAPIClient({ accessToken });
+    const client = getInstillAPIClient({
+      accessToken: accessToken ?? undefined,
+    });
 
-    const user = await client.core.user.getUser({ userName });
+    const user = await client.mgmt.user.getUser({ userId });
 
     return Promise.resolve(user);
   } catch (error) {
@@ -29,26 +28,20 @@ export async function fetchUser({
   }
 }
 
-export function getUseUserQueryKey(userName: Nullable<string>) {
-  return ["users", userName];
-}
-
 export function prefetchUser({
-  userName,
+  userId,
   accessToken,
   queryClient,
 }: {
-  userName: Nullable<string>;
+  userId: Nullable<string>;
   accessToken: Nullable<string>;
   queryClient: QueryClient;
 }) {
-  const queryKey = getUseUserQueryKey(userName);
-
   return queryClient.prefetchQuery({
-    queryKey,
+    queryKey: queryKeyStore.mgmt.getUseUserQueryKey({ userId }),
     queryFn: async () => {
       return await fetchUser({
-        userName,
+        userId,
         accessToken,
       });
     },

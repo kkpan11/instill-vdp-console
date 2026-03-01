@@ -10,6 +10,9 @@ export function transformPipelineTriggerRequestFieldsToSuperRefineRules(
   if (!fields) return rules;
 
   for (const [key, value] of Object.entries(fields)) {
+    // Skip the fields that don't have value or instillFormat
+    if (!value || !value.instillFormat) continue;
+
     switch (value.instillFormat) {
       case "string":
         rules.push({
@@ -105,6 +108,7 @@ export function transformPipelineTriggerRequestFieldsToSuperRefineRules(
           },
         });
         break;
+      case "array:audio":
       case "array:audio/*":
         rules.push({
           key,
@@ -121,6 +125,7 @@ export function transformPipelineTriggerRequestFieldsToSuperRefineRules(
           },
         });
         break;
+      case "array:image":
       case "array:image/*":
         rules.push({
           key,
@@ -138,6 +143,7 @@ export function transformPipelineTriggerRequestFieldsToSuperRefineRules(
           },
         });
         break;
+      case "array:file":
       case "array:*/*":
         rules.push({
           key,

@@ -1,5 +1,6 @@
 "use client";
 
+import type { PipelineTriggerRecord } from "instill-sdk";
 import { ColumnDef } from "@tanstack/react-table";
 
 import { Button, DataTable } from "@instill-ai/design-system";
@@ -9,7 +10,6 @@ import {
   convertTimestampToLocal,
   convertToSecondsAndMilliseconds,
   parseTriggerStatusLabel,
-  PipelineTriggerRecord,
 } from "../../lib";
 import { TriggersTablePlaceholder } from "./TriggersTablePlaceholder";
 
@@ -103,7 +103,7 @@ export const PipelineTriggersTable = (props: PipelineTriggersTableProps) => {
         isLoading={isLoading}
         loadingRows={6}
         primaryText={null}
-        secondaryText="Pipeline triggers"
+        secondaryText="Pipeline runs"
       >
         <TableError marginBottom="!border-0" />
       </DataTable>
@@ -121,7 +121,7 @@ export const PipelineTriggersTable = (props: PipelineTriggersTableProps) => {
         isLoading={isLoading}
         loadingRows={6}
         primaryText={null}
-        secondaryText="Pipeline triggers"
+        secondaryText="Pipeline runs"
       >
         <TriggersTablePlaceholder
           enableCreateButton={false}
@@ -136,12 +136,12 @@ export const PipelineTriggersTable = (props: PipelineTriggersTableProps) => {
       columns={columns}
       data={pipelineTriggers}
       pageSize={6}
-      searchPlaceholder={"Search Triggers"}
+      searchPlaceholder={"Search runs"}
       searchKey={null}
       isLoading={isLoading}
       loadingRows={6}
       primaryText={null}
-      secondaryText="Pipeline triggers"
+      secondaryText="Pipeline runs"
     />
   );
 };

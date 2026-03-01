@@ -1,5 +1,6 @@
 "use client";
 
+import { InstillNameInterpreter } from "instill-sdk";
 import { Edge, Node } from "reactflow";
 import { useShallow } from "zustand/react/shallow";
 
@@ -7,12 +8,12 @@ import {
   InstillStore,
   useInstillStore,
   useNamespacePipeline,
+  useSortedReleases,
 } from "../../../lib";
 import {
   checkIsValidPosition,
   composeEdgesFromNodes,
   createGraphLayout,
-  useSortedReleases,
 } from "../lib";
 import { createNodesFromPipelineRecipe } from "../lib/createNodesFromPipelineRecipe";
 import { NodeData } from "../type";
@@ -41,16 +42,29 @@ export const BackToLatestVersionTopBar = () => {
   } = useInstillStore(useShallow(selector));
 
   const sortedReleases = useSortedReleases({
-    pipelineName,
+    namespaceId: pipelineName
+      ? InstillNameInterpreter.pipeline(pipelineName).namespaceId
+      : null,
+    pipelineId: pipelineName
+      ? InstillNameInterpreter.pipeline(pipelineName).resourceId
+      : null,
     accessToken,
     enabledQuery: pipelineIsNew ? false : enabledQuery,
+    view: "VIEW_FULL",
+    shareCode: null,
   });
 
   const pipeline = useNamespacePipeline({
-    enabled: enabledQuery && !pipelineIsNew,
-    namespacePipelineName: pipelineName,
+    enabled: enabledQuery && !!pipelineName && !pipelineIsNew,
+    namespaceId: pipelineName
+      ? InstillNameInterpreter.pipeline(pipelineName).namespaceId
+      : null,
+    pipelineId: pipelineName
+      ? InstillNameInterpreter.pipeline(pipelineName).resourceId
+      : null,
     accessToken,
-    retry: false,
+    view: "VIEW_FULL",
+    shareCode: null,
   });
 
   return currentVersion === "latest" ||
@@ -65,7 +79,11 @@ export const BackToLatestVersionTopBar = () => {
         <span
           className="cursor-pointer text-semantic-accent-default product-body-text-4-medium hover:!underline"
           onClick={() => {
-            if (sortedReleases.data.length === 0 || !pipeline.isSuccess) {
+            if (
+              sortedReleases.data.length === 0 ||
+              !pipeline.isSuccess ||
+              !pipeline.data.recipe
+            ) {
               return;
             }
 

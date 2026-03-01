@@ -17,19 +17,28 @@ export * from "./use-controllable-state";
 export * from "./use-instill-form";
 export * from "./use-instill-store";
 export * from "./use-smart-hint";
-export * from "./vdp-sdk";
+export * from "./sdk-helper";
 export * from "./fillArrayWithZero";
+export * from "./isArtifactRelatedInstillFormat";
+export * from "./isDownloadableArtifactBlobURL";
 export * from "./isPublicModel";
 export * from "./isPublicPipeline";
+export * from "./isValidURL";
 export * from "./toastInstillError";
+export * from "./toastInstillSuccess";
 export * from "./useRouteInfo";
-export * from "./getCaptializeTwoWordsFromName";
+export * from "./getCapitalizeTwoWordsFromName";
 export * from "./convertLongNumberToK";
 export * from "./formatNumberToLocale";
 export * from "./generateDateInPast";
+export * from "./createNaiveRandomString";
 export * from "./convertSentenceToCamelCase";
 export * from "./useUserNamespaces";
 export * from "./stringToHash32Bit";
+export * from "./clientCookies";
+export * from "./useCheckNoContent";
+
+export { initializeIntegrationConnection } from "./integrations/helpers";
 
 export { debounce };
 

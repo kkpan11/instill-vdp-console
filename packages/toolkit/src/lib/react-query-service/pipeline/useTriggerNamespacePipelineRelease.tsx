@@ -3,8 +3,8 @@
 import type { TriggerNamespacePipelineReleaseRequest } from "instill-sdk";
 import { useMutation } from "@tanstack/react-query";
 
+import { getInstillAPIClient } from "../../sdk-helper";
 import { Nullable } from "../../type";
-import { getInstillAPIClient } from "../../vdp-sdk";
 
 export function useTriggerNamespacePipelineRelease() {
   return useMutation({
@@ -20,7 +20,10 @@ export function useTriggerNamespacePipelineRelease() {
       });
 
       const pipelineRelease =
-        await client.vdp.trigger.triggerNamespacePipelineRelease(payload);
+        await client.pipeline.trigger.triggerNamespacePipelineRelease({
+          ...payload,
+          isConsole: true,
+        });
 
       return Promise.resolve(pipelineRelease);
     },

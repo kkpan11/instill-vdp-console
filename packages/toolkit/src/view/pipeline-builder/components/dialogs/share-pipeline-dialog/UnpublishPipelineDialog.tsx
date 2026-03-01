@@ -1,15 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { UpdateNamespacePipelineRequest } from "instill-sdk";
+import {
+  InstillNameInterpreter,
+  UpdateNamespacePipelineRequest,
+} from "instill-sdk";
 
-import { Button, Dialog, useToast } from "@instill-ai/design-system";
+import { Button, Dialog } from "@instill-ai/design-system";
 
 import {
   InstillStore,
   Nullable,
   sendAmplitudeData,
   toastInstillError,
+  toastInstillSuccess,
   useAmplitudeCtx,
   useInstillStore,
   useNamespacePipeline,
@@ -32,21 +36,30 @@ export const UnpublishPipelineDialog = ({
   const [isOpen, setIsOpen] = React.useState(false);
   const { accessToken, enabledQuery, updateDialogSharePipelineIsOpen } =
     useInstillStore(useShallow(selector));
-  const { toast } = useToast();
 
   const pipeline = useNamespacePipeline({
-    namespacePipelineName: pipelineName,
+    namespaceId: pipelineName
+      ? InstillNameInterpreter.pipeline(pipelineName).namespaceId
+      : null,
+    pipelineId: pipelineName
+      ? InstillNameInterpreter.pipeline(pipelineName).resourceId
+      : null,
     enabled: enabledQuery && !!pipelineName,
     accessToken,
+    view: "VIEW_FULL",
+    shareCode: null,
   });
 
   const updatePipeline = useUpdateNamespacePipeline();
   async function unPublishPipeline() {
     if (!pipeline.isSuccess || !pipelineName) return;
 
+    const instillName = InstillNameInterpreter.pipeline(pipelineName);
+
     try {
       const payload: UpdateNamespacePipelineRequest = {
-        namespacePipelineName: pipelineName,
+        namespaceId: instillName.namespaceId,
+        pipelineId: instillName.resourceId,
         sharing: {
           ...pipeline.data.sharing,
           users: {
@@ -64,10 +77,8 @@ export const UnpublishPipelineDialog = ({
         sendAmplitudeData("unpublish_pipeline");
       }
 
-      toast({
+      toastInstillSuccess({
         title: "Pipeline successfully unpublished",
-        variant: "alert-success",
-        size: "small",
       });
 
       updateDialogSharePipelineIsOpen(() => false);
@@ -75,7 +86,6 @@ export const UnpublishPipelineDialog = ({
       toastInstillError({
         title: "Something went wrong when unpublishing pipeline",
         error,
-        toast,
       });
     }
   }

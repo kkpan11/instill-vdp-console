@@ -1,4 +1,7 @@
-import { TriggerNamespacePipelineResponse } from "instill-sdk";
+import {
+  TriggerNamespacePipelineResponse,
+  TriggerUserPipelineWithStreamData,
+} from "instill-sdk";
 import {
   addEdge,
   applyEdgeChanges,
@@ -52,6 +55,8 @@ export const pipelineBuilderInitialState: PipelineBuilderState = {
     open: false,
     confirmNavigation: null,
   },
+  triggerWithStreamData: [],
+  displayEventNodes: false,
 };
 
 export const createPipelineBuilderSlice: StateCreator<
@@ -279,6 +284,24 @@ export const createPipelineBuilderSlice: StateCreator<
       return {
         ...state,
         warnUnsavedChangesDialogState: fn(state.warnUnsavedChangesDialogState),
+      };
+    }),
+  updateTriggerWithStreamData: (
+    fn: (
+      prev: TriggerUserPipelineWithStreamData[],
+    ) => TriggerUserPipelineWithStreamData[],
+  ) =>
+    set((state) => {
+      return {
+        ...state,
+        triggerWithStreamData: fn(state.triggerWithStreamData),
+      };
+    }),
+  updateDisplayEventNodes: (fn: (prev: boolean) => boolean) =>
+    set((state) => {
+      return {
+        ...state,
+        displayEventNodes: fn(state.displayEventNodes),
       };
     }),
 });

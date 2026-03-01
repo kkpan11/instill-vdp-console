@@ -1,6 +1,5 @@
 import * as React from "react";
 
-import { dot } from "../../dot";
 import { GeneralRecord, Nullable } from "../../type";
 import { ComponentOutputFields } from "../components";
 import { ChooseTitleFrom, FieldMode, InstillFormTree } from "../types";
@@ -12,6 +11,7 @@ export type PickComponentOutputFieldsFromInstillFormTreeProps = {
   chooseTitleFrom?: ChooseTitleFrom;
   hideField?: boolean;
   objectArrayIndex?: number;
+  forceFormatted?: boolean;
 };
 
 export function pickComponentOutputFieldsFromInstillFormTree(
@@ -19,7 +19,8 @@ export function pickComponentOutputFieldsFromInstillFormTree(
 ) {
   // 1. Preprocess
 
-  const { tree, data, chooseTitleFrom, hideField, mode } = props;
+  const { tree, data, chooseTitleFrom, hideField, mode, forceFormatted } =
+    props;
 
   let title: Nullable<string> = null;
 
@@ -36,7 +37,11 @@ export function pickComponentOutputFieldsFromInstillFormTree(
   let propertyValue: any = null;
 
   if (tree._type === "formGroup") {
-    propertyValue = data ?? null;
+    if (tree.fieldKey) {
+      propertyValue = data ? data[tree.fieldKey] : null;
+    } else {
+      propertyValue = data ?? null;
+    }
   } else if (tree._type === "objectArray") {
     if (tree.fieldKey) {
       propertyValue = data
@@ -48,8 +53,8 @@ export function pickComponentOutputFieldsFromInstillFormTree(
       propertyValue = Array.isArray(data) ? data : null;
     }
   } else if (tree._type === "formItem") {
-    if (tree.path) {
-      propertyValue = data ? (dot.getter(data, tree.path) ?? null) : null;
+    if (tree.fieldKey) {
+      propertyValue = data ? data[tree.fieldKey] : null;
     }
   } else if (tree._type === "arrayArray") {
     if (tree.fieldKey) {
@@ -83,13 +88,13 @@ export function pickComponentOutputFieldsFromInstillFormTree(
 
             return 0;
           })
-          .map((property) => {
-            return pickComponentOutputFieldsFromInstillFormTree({
+          .map((property) =>
+            pickComponentOutputFieldsFromInstillFormTree({
               ...props,
               tree: property,
               data: propertyValue,
-            });
-          })}
+            }),
+          )}
       </div>
     ) : (
       <React.Fragment
@@ -103,13 +108,13 @@ export function pickComponentOutputFieldsFromInstillFormTree(
 
             return 0;
           })
-          .map((property) => {
-            return pickComponentOutputFieldsFromInstillFormTree({
+          .map((property) =>
+            pickComponentOutputFieldsFromInstillFormTree({
               ...props,
               tree: property,
               data: propertyValue,
-            });
-          })}
+            }),
+          )}
       </React.Fragment>
     );
   }
@@ -120,16 +125,15 @@ export function pickComponentOutputFieldsFromInstillFormTree(
   }
 
   // Process objectArray
-  // Becase we don't know the index of the output objectArray, we need to use
+  // Because we don't know the index of the output objectArray, we need to use
   // the data as a hint here
 
   if (tree._type === "objectArray") {
     const objectArrayData = propertyValue as GeneralRecord[];
-
     return propertyValue && tree.fieldKey ? (
       <div key={tree.path || tree.fieldKey} className="flex flex-col gap-y-2">
-        {objectArrayData.map((data, idx) => {
-          return pickComponentOutputFieldsFromInstillFormTree({
+        {objectArrayData.map((object, idx) =>
+          pickComponentOutputFieldsFromInstillFormTree({
             ...props,
             tree: tree.properties,
 
@@ -138,11 +142,11 @@ export function pickComponentOutputFieldsFromInstillFormTree(
             // Down below the formTree the foo field's path is data.foo
             // So we need to restructure the data to {data:{foo: 1}} and {data:{foo: 2}}
             data: {
-              [tree.fieldKey as string]: data,
+              [tree.fieldKey as string]: object,
             },
             objectArrayIndex: idx,
-          });
-        })}
+          }),
+        )}
       </div>
     ) : (
       <React.Fragment key={tree.path || tree.fieldKey}>
@@ -160,15 +164,15 @@ export function pickComponentOutputFieldsFromInstillFormTree(
 
     return propertyValue && Array.isArray(arrayArrayData) ? (
       <div key={tree.path || tree.fieldKey} className="flex flex-col gap-y-2">
-        {arrayArrayData.map((data) => {
-          return pickComponentOutputFieldsFromInstillFormTree({
+        {arrayArrayData.map((data) =>
+          pickComponentOutputFieldsFromInstillFormTree({
             ...props,
             tree: tree.items,
             data: {
               [tree.fieldKey as string]: data,
             },
-          });
-        })}
+          }),
+        )}
       </div>
     ) : null;
   }
@@ -190,6 +194,7 @@ export function pickComponentOutputFieldsFromInstillFormTree(
         title={title}
         text={propertyValue}
         hideField={hideField}
+        forceFormatted={forceFormatted}
       />
     );
   }
@@ -208,7 +213,27 @@ export function pickComponentOutputFieldsFromInstillFormTree(
   if (tree.instillFormat.includes("array:")) {
     const arrayType = tree.instillFormat.replaceAll("array:", "").split("/")[0];
 
-    if (arrayType?.includes("structured")) {
+    if (arrayType?.includes("structured") || arrayType === "json") {
+      // Some time even the type hint is array:semi-structured, backend will still be possible
+      // to return array of string or array of number. So we need to handle that case here
+      if (Array.isArray(propertyValue) && propertyValue.length > 0) {
+        const firstElement = propertyValue[0];
+        if (
+          typeof firstElement === "string" ||
+          typeof firstElement === "number" ||
+          typeof firstElement === "boolean"
+        ) {
+          return (
+            <ComponentOutputFields.ObjectField
+              mode={mode}
+              title={title}
+              object={propertyValue}
+              hideField={hideField}
+            />
+          );
+        }
+      }
+
       return (
         <ComponentOutputFields.ObjectsField
           mode={mode}
@@ -239,6 +264,7 @@ export function pickComponentOutputFieldsFromInstillFormTree(
             title={title}
             texts={propertyValue}
             hideField={hideField}
+            forceFormatted={forceFormatted}
           />
         );
       }
@@ -279,6 +305,18 @@ export function pickComponentOutputFieldsFromInstillFormTree(
             title={title}
             texts={propertyValue}
             hideField={hideField}
+            forceFormatted={forceFormatted}
+          />
+        );
+      }
+      case "file":
+      case "document": {
+        return (
+          <ComponentOutputFields.DownloadableFilesField
+            mode={mode}
+            title={title}
+            files={propertyValue}
+            hideField={hideField}
           />
         );
       }
@@ -290,6 +328,7 @@ export function pickComponentOutputFieldsFromInstillFormTree(
             title={title}
             texts={propertyValue}
             hideField={hideField}
+            forceFormatted={forceFormatted}
           />
         );
       }
@@ -300,7 +339,7 @@ export function pickComponentOutputFieldsFromInstillFormTree(
   const singularType = tree.instillFormat.split("/")[0];
 
   // Process structured type like semi-structured, structured/detection_object...etc
-  if (singularType?.includes("structured")) {
+  if (singularType?.includes("structured") || singularType === "json") {
     return (
       <ComponentOutputFields.ObjectField
         mode={mode}
@@ -322,6 +361,7 @@ export function pickComponentOutputFieldsFromInstillFormTree(
           title={title}
           text={propertyValue}
           hideField={hideField}
+          forceFormatted={forceFormatted}
         />
       );
     }
@@ -362,15 +402,28 @@ export function pickComponentOutputFieldsFromInstillFormTree(
           title={title}
           text={propertyValue}
           hideField={hideField}
+          forceFormatted={forceFormatted}
         />
       );
     }
-    case "semi-structured": {
+    case "semi-structured":
+    case "json": {
       return (
         <ComponentOutputFields.ObjectField
           mode={mode}
           title={title}
           object={propertyValue}
+          hideField={hideField}
+        />
+      );
+    }
+    case "file":
+    case "document": {
+      return (
+        <ComponentOutputFields.DownloadableFileField
+          mode={mode}
+          title={title}
+          file={propertyValue}
           hideField={hideField}
         />
       );
@@ -382,6 +435,7 @@ export function pickComponentOutputFieldsFromInstillFormTree(
           title={title}
           text={propertyValue}
           hideField={hideField}
+          forceFormatted={forceFormatted}
         />
       );
     }

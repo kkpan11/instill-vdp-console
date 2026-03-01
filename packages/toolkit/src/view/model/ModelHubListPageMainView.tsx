@@ -1,18 +1,18 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import type { Visibility } from "instill-sdk";
+import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import debounce from "lodash.debounce";
 
-import { Button, Icons, Input, Select } from "@instill-ai/design-system";
+import { Button, Icons, Input } from "@instill-ai/design-system";
 
 import {
   InstillStore,
-  useInfiniteUserModels,
+  useInfiniteNamespaceModels,
   useInstillStore,
   useRouteInfo,
   useShallow,
-  Visibility,
 } from "../../lib";
 import { ModelsList } from "./ModelsList";
 import { ModelsListPagination } from "./ModelsListPagination";
@@ -26,7 +26,7 @@ export const ModelHubListPageMainView = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const visibility = searchParams.get("visibility");
-  const [pageNumber, setPageNumber] = useState(0);
+  const [pageNumber, setPageNumber] = React.useState(0);
   const routeInfo = useRouteInfo();
 
   const { accessToken, enabledQuery } = useInstillStore(useShallow(selector));
@@ -41,14 +41,13 @@ export const ModelHubListPageMainView = () => {
     [],
   );
 
-  const [selectedVisibilityOption, setSelectedVisibilityOption] =
-    React.useState<Visibility>(
-      visibility === "VISIBILITY_PUBLIC"
-        ? "VISIBILITY_PUBLIC"
-        : "VISIBILITY_UNSPECIFIED",
-    );
+  const [selectedVisibilityOption] = React.useState<Visibility>(
+    visibility === "VISIBILITY_PUBLIC"
+      ? "VISIBILITY_PUBLIC"
+      : "VISIBILITY_UNSPECIFIED",
+  );
 
-  useEffect(() => {
+  React.useEffect(() => {
     setPageNumber(0);
   }, [selectedVisibilityOption, searchCode]);
 
@@ -56,12 +55,14 @@ export const ModelHubListPageMainView = () => {
    * Query resource data
    * -----------------------------------------------------------------------*/
 
-  const models = useInfiniteUserModels({
-    userName: routeInfo.data.namespaceName,
+  const models = useInfiniteNamespaceModels({
+    namespaceId: routeInfo.isSuccess ? routeInfo.data.namespaceId : null,
     enabled: routeInfo.isSuccess && enabledQuery,
     accessToken,
     filter: searchCode ? `q="${searchCode}"` : null,
     visibility: selectedVisibilityOption ?? null,
+    orderBy: null,
+    view: "VIEW_FULL",
   });
 
   const isLoadingResource =
@@ -98,7 +99,7 @@ export const ModelHubListPageMainView = () => {
             </Input.Root>
           </div>
         </div>
-        <div className="flex w-[300px] min-w-52 flex-col gap-y-2.5">
+        {/* <div className="flex w-[300px] min-w-52 flex-col gap-y-2.5">
           <p className="text-semantic-fg-primary product-body-text-3-semibold">
             Visibility
           </p>
@@ -119,7 +120,7 @@ export const ModelHubListPageMainView = () => {
               </Select.Group>
             </Select.Content>
           </Select.Root>
-        </div>
+        </div> */}
         <Button
           className="ml-auto gap-x-2"
           variant="primary"

@@ -1,3 +1,10 @@
+"use client";
+
+import type {
+  CreateNamespaceModelRequest,
+  ModelTask,
+  Visibility,
+} from "instill-sdk";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,7 +14,6 @@ import { z } from "zod";
 import {
   Button,
   Form,
-  getModelHardwareToolkit,
   getModelInstanceTaskToolkit,
   getModelRegionToolkit,
   Icons,
@@ -15,32 +21,30 @@ import {
   RadioGroup,
   Select,
   Textarea,
-  toast,
 } from "@instill-ai/design-system";
 
 import { EntitySelector, LoadingSpin } from "../../components";
 import {
+  DOCS_BASE_URL,
   InstillErrors,
   InstillModelTask,
   InstillModelVisibility,
+  resourceIdPrefix,
 } from "../../constant";
 import {
-  CreateUserModelPayload,
   InstillStore,
-  ModelTask,
   sendAmplitudeData,
   toastInstillError,
   useAmplitudeCtx,
-  useCreateUserModel,
+  useCreateNamespaceModel,
   useInstillStore,
-  useModelRegions,
+  useModelAvailableRegions,
   useRouteInfo,
   useShallow,
-  Visibility,
 } from "../../lib";
 import { FieldDescriptionTooltip } from "../../lib/use-instill-form/components/common";
 import { useUserNamespaces } from "../../lib/useUserNamespaces";
-import { env, validateInstillResourceID } from "../../server";
+import { env, formatResourceId } from "../../server";
 
 type Option = {
   value: string;
@@ -51,24 +55,14 @@ const CreateModelSchema = z
   .object({
     id: z.string(),
     description: z.string().optional(),
-    visibility: z
-      .enum(InstillModelVisibility)
-      .default(InstillModelVisibility[0]),
+    visibility: z.enum(InstillModelVisibility),
     region: z.string(),
     hardware: z.string(),
     hardwareCustom: z.string().optional(),
-    task: z.enum(InstillModelTask).default(InstillModelTask[0]),
+    task: z.enum(InstillModelTask),
     namespaceId: z.string(),
   })
   .superRefine((state, ctx) => {
-    if (!validateInstillResourceID(state.id)) {
-      return ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: InstillErrors.ResourceIDInvalidError,
-        path: ["id"],
-      });
-    }
-
     if (state.hardware === "Custom" && !state.hardwareCustom) {
       return ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -80,6 +74,7 @@ const CreateModelSchema = z
 
 const selector = (store: InstillStore) => ({
   accessToken: store.accessToken,
+  enabledQuery: store.enabledQuery,
   navigationNamespaceAnchor: store.navigationNamespaceAnchor,
   updateNavigationNamespaceAnchor: store.updateNavigationNamespaceAnchor,
 });
@@ -87,6 +82,7 @@ const selector = (store: InstillStore) => ({
 export const CreateModelForm = () => {
   const {
     accessToken,
+    enabledQuery,
     navigationNamespaceAnchor,
     updateNavigationNamespaceAnchor,
   } = useInstillStore(useShallow(selector));
@@ -106,11 +102,30 @@ export const CreateModelForm = () => {
   const form = useForm<z.infer<typeof CreateModelSchema>>({
     resolver: zodResolver(CreateModelSchema),
     mode: "onChange",
+    defaultValues: {
+      id: "",
+      task: "TASK_CLASSIFICATION",
+      visibility: "VISIBILITY_PUBLIC",
+    },
   });
 
   const userNamespaces = useUserNamespaces();
 
-  const modelRegions = useModelRegions({ accessToken });
+  const formattedModelId = formatResourceId(
+    form.watch("id"),
+    resourceIdPrefix.model,
+  );
+
+  const {
+    formState: { isDirty, errors },
+  } = form;
+
+  console.log(errors);
+
+  const modelRegions = useModelAvailableRegions({
+    accessToken,
+    enabledQuery,
+  });
 
   React.useEffect(() => {
     if (regionOptions.length && Object.keys(hardwareOptions).length) {
@@ -159,53 +174,56 @@ export const CreateModelForm = () => {
           value: item.regionName,
           title: getModelRegionToolkit(item.regionName) || "Unknown",
         }));
-      const newHardwareOptions: Record<string, Option[]> =
-        modelRegions.data.reduce((acc, curr) => {
-          const regionHardware = curr.hardware.map((item) => ({
-            value: item,
-            title: getModelHardwareToolkit(item),
-          }));
 
-          return {
-            ...acc,
-            [curr.regionName]: regionHardware,
-          };
-        }, {});
+      const newHardwareOptions: Record<string, Option[]> = {};
+
+      for (const region of modelRegions.data) {
+        newHardwareOptions[region.regionName] = region.hardware.map((item) => ({
+          ...item,
+          value: item.value || "Custom",
+        }));
+      }
 
       setRegionOptions(newRegionOptions);
       setHardwareOptions(newHardwareOptions);
     }
   }, [form, modelRegions.isSuccess, modelRegions.data, regionOptions.length]);
 
-  const createModel = useCreateUserModel();
+  const createModel = useCreateNamespaceModel();
   async function onSubmit(data: z.infer<typeof CreateModelSchema>) {
-    if (!routeInfo.isSuccess) {
+    if (
+      !routeInfo.isSuccess ||
+      !formattedModelId ||
+      !userNamespaces.isSuccess
+    ) {
       return;
     }
 
     setCreating(true);
 
-    const payload: CreateUserModelPayload = {
-      id: data.id,
-      description: data.description,
-      visibility: data.visibility,
-      region: data.region,
-      hardware:
-        data.hardware === "Custom" ? data.hardwareCustom || "" : data.hardware,
-      task: data.task,
-      modelDefinition: "model-definitions/container",
-      configuration: {},
-    };
-
-    const targetNamespace = userNamespaces.find(
+    const targetNamespace = userNamespaces.data.find(
       (namespace) => namespace.id === data.namespaceId,
     );
 
     if (targetNamespace) {
+      const payload: CreateNamespaceModelRequest = {
+        namespaceId: targetNamespace.id,
+        id: formattedModelId,
+        description: data.description,
+        visibility: data.visibility ?? "VISIBILITY_PUBLIC",
+        region: data.region,
+        hardware:
+          data.hardware === "Custom"
+            ? data.hardwareCustom || ""
+            : data.hardware,
+        task: data.task,
+        modelDefinition: "model-definitions/container",
+        configuration: {},
+      };
+
       try {
         await createModel.mutateAsync({
           accessToken,
-          entityName: targetNamespace.name,
           payload,
         });
 
@@ -215,13 +233,14 @@ export const CreateModelForm = () => {
 
         updateNavigationNamespaceAnchor(() => targetNamespace.id);
 
-        router.push(`/${data.namespaceId}/models/${data.id}/playground`);
+        router.push(
+          `/${data.namespaceId}/models/${formattedModelId}/playground`,
+        );
       } catch (error) {
         setCreating(false);
         toastInstillError({
           title: "Failed to create model",
           error,
-          toast,
         });
       }
     } else {
@@ -229,7 +248,6 @@ export const CreateModelForm = () => {
       toastInstillError({
         title: "Please choose a valid owner to create your model",
         error: null,
-        toast,
       });
     }
   }
@@ -273,9 +291,16 @@ export const CreateModelForm = () => {
                                   form.trigger("id");
                                 }
                               }}
-                              data={userNamespaces}
+                              data={
+                                userNamespaces.isSuccess
+                                  ? userNamespaces.data
+                                  : []
+                              }
                             />
                           </Form.Control>
+                          <p className="text-semantic-fg-secondary product-body-text-4-regular">
+                            Use the drop-down to choose a different owner.
+                          </p>
                           <Form.Message />
                         </Form.Item>
                       );
@@ -312,15 +337,17 @@ export const CreateModelForm = () => {
                               />
                             </Input.Root>
                           </Form.Control>
+                          {isDirty ? (
+                            <p className="text-semantic-fg-secondary product-body-text-4-regular">
+                              ID will be transformed to: {formattedModelId}
+                            </p>
+                          ) : null}
                           <Form.Message />
                         </Form.Item>
                       );
                     }}
                   />
                 </div>
-                <p className="text-xs text-semantic-fg-secondary">
-                  {`Give it a short and memorable ID, like 'cat-detector'. Use the drop-down to choose a different owner.`}
-                </p>
               </div>
               <Form.Field
                 control={form.control}
@@ -355,7 +382,7 @@ export const CreateModelForm = () => {
                           AI task
                         </Form.Label>
                         <FieldDescriptionTooltip
-                          description={`You can read more about AI tasks <a rel="noopener noreferrer" target="_blank" href="https://www.instill.tech/docs/model/ai-task">here</a>`}
+                          description={`You can read more about AI tasks <a rel="noopener noreferrer" target="_blank" href="${DOCS_BASE_URL}/model/ai-task">here</a>`}
                         />
                       </div>
                       <Form.Control>
@@ -393,6 +420,7 @@ export const CreateModelForm = () => {
                   );
                 }}
               />
+              {/* INS-5438: We tempoarily hide the private option for better visibility */}
               <RadioGroup.Root
                 onValueChange={(
                   value: Exclude<Visibility, "VISIBILITY_UNSPECIFIED">,
@@ -400,7 +428,7 @@ export const CreateModelForm = () => {
                   form.setValue("visibility", value);
                 }}
                 className="!flex flex-col gap-y-4"
-                defaultValue={InstillModelVisibility[0]}
+                defaultValue={InstillModelVisibility[1]}
               >
                 <div className="flex items-center space-x-3">
                   <label
@@ -423,7 +451,7 @@ export const CreateModelForm = () => {
                     </div>
                   </label>
                 </div>
-                <div className="flex items-center space-x-3">
+                {/* <div className="flex items-center space-x-3">
                   <label
                     htmlFor="radio-private"
                     className="flex flex-row gap-x-3"
@@ -444,7 +472,7 @@ export const CreateModelForm = () => {
                       </p>
                     </div>
                   </label>
-                </div>
+                </div> */}
               </RadioGroup.Root>
               <Form.Field
                 control={form.control}
@@ -468,9 +496,7 @@ export const CreateModelForm = () => {
 
                               form.setValue("hardware", targetValue);
                             }
-                            {
-                              updateCustomHardware("");
-                            }
+                            updateCustomHardware("");
                           }}
                         >
                           <Select.Trigger className="mt-auto w-full">
@@ -570,7 +596,11 @@ export const CreateModelForm = () => {
             </div>
             <div className="pb-14 pt-12">
               <Button
-                disabled={creating || userNamespaces.length === 0}
+                disabled={
+                  creating ||
+                  !userNamespaces.isSuccess ||
+                  userNamespaces.data.length === 0
+                }
                 form={formID}
                 variant="primary"
                 size="lg"

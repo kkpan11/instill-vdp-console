@@ -1,6 +1,7 @@
 import type { PipelineVariableFieldMap } from "instill-sdk";
 import { UseFormReturn } from "react-hook-form";
 
+import { DocumentInputAcceptMimeTypes } from "../../../constant/pipeline";
 import { Nullable } from "../../type";
 import { TriggerRequestFormFields } from "../components";
 import { FieldMode, StartOperatorFreeFormFieldItem } from "../types";
@@ -9,7 +10,7 @@ export type PickPipelineTriggerRequestFormFieldsProps = {
   mode: FieldMode;
 
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-  form: UseFormReturn<{ [k: string]: any }, any, undefined>;
+  form: UseFormReturn<{ [k: string]: any }, any, { [k: string]: any }>;
   onEditField?: (key: string) => void;
   onDeleteField?: (key: string) => void;
   keyPrefix?: string;
@@ -17,6 +18,7 @@ export type PickPipelineTriggerRequestFormFieldsProps = {
   disabledFieldControls?: boolean;
   disabledReferenceHint?: boolean;
   fields: Nullable<PipelineVariableFieldMap>;
+  forceStringMultiline?: boolean;
 };
 
 export function pickPipelineTriggerRequestFormFields({
@@ -29,6 +31,7 @@ export function pickPipelineTriggerRequestFormFields({
   disabledFieldControls,
   keyPrefix,
   disabledReferenceHint,
+  forceStringMultiline,
 }: PickPipelineTriggerRequestFormFieldsProps) {
   const items: StartOperatorFreeFormFieldItem[] = [];
 
@@ -38,9 +41,18 @@ export function pickPipelineTriggerRequestFormFields({
   // is we want to sort the fields by the order of `instillUIOrder` property.
 
   for (const [key, value] of Object.entries(fields)) {
+    // Skip the fields that don't have value or instillFormat
+    if (!value || !value.instillFormat) continue;
+
+    if (value.listen) {
+      continue;
+    }
+
+    const title = value.title ?? key;
+
     switch (value.instillFormat) {
       case "string":
-        if (value.instillUiMultiline) {
+        if (value.instillUiMultiline || forceStringMultiline) {
           items.push({
             key,
             instillUIOrder: value.instillUiOrder,
@@ -50,7 +62,7 @@ export function pickPipelineTriggerRequestFormFields({
                 key={key}
                 form={form}
                 path={key}
-                title={value.title}
+                title={title}
                 onDeleteField={onDeleteField}
                 onEditField={onEditField}
                 description={value.description ?? null}
@@ -72,7 +84,7 @@ export function pickPipelineTriggerRequestFormFields({
                 key={key}
                 form={form}
                 path={key}
-                title={value.title}
+                title={title}
                 onDeleteField={onDeleteField}
                 onEditField={onEditField}
                 description={value.description ?? null}
@@ -87,27 +99,52 @@ export function pickPipelineTriggerRequestFormFields({
         }
         break;
       case "array:string": {
-        items.push({
-          key,
-          instillUIOrder: value.instillUiOrder,
-          component: (
-            <TriggerRequestFormFields.TextsField
-              mode={mode}
-              key={key}
-              form={form}
-              path={key}
-              title={value.title}
-              onDeleteField={onDeleteField}
-              onEditField={onEditField}
-              description={value.description ?? null}
-              disabled={disabledFields}
-              keyPrefix={keyPrefix}
-              disabledFieldControl={disabledFieldControls}
-              disabledReferenceHint={disabledReferenceHint}
-              instillFormat={value.instillFormat}
-            />
-          ),
-        });
+        if (forceStringMultiline) {
+          items.push({
+            key,
+            instillUIOrder: value.instillUiOrder,
+            component: (
+              <TriggerRequestFormFields.TextareasField
+                mode={mode}
+                key={key}
+                form={form}
+                path={key}
+                title={title}
+                onDeleteField={onDeleteField}
+                onEditField={onEditField}
+                description={value.description ?? null}
+                disabled={disabledFields}
+                keyPrefix={keyPrefix}
+                disabledFieldControl={disabledFieldControls}
+                disabledReferenceHint={disabledReferenceHint}
+                instillFormat={value.instillFormat}
+              />
+            ),
+          });
+        } else {
+          items.push({
+            key,
+            instillUIOrder: value.instillUiOrder,
+            component: (
+              <TriggerRequestFormFields.TextsField
+                mode={mode}
+                key={key}
+                form={form}
+                path={key}
+                title={title}
+                onDeleteField={onDeleteField}
+                onEditField={onEditField}
+                description={value.description ?? null}
+                disabled={disabledFields}
+                keyPrefix={keyPrefix}
+                disabledFieldControl={disabledFieldControls}
+                disabledReferenceHint={disabledReferenceHint}
+                instillFormat={value.instillFormat}
+              />
+            ),
+          });
+        }
+
         break;
       }
       case "boolean":
@@ -120,7 +157,7 @@ export function pickPipelineTriggerRequestFormFields({
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}
@@ -143,7 +180,7 @@ export function pickPipelineTriggerRequestFormFields({
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}
@@ -166,7 +203,7 @@ export function pickPipelineTriggerRequestFormFields({
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}
@@ -179,17 +216,19 @@ export function pickPipelineTriggerRequestFormFields({
           ),
         });
         break;
+      case "audio":
       case "audio/*":
         items.push({
           key,
           instillUIOrder: value.instillUiOrder,
           component: (
-            <TriggerRequestFormFields.AudioField
+            <TriggerRequestFormFields.FileAndStringUploadField
+              type="audio"
               mode={mode}
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}
@@ -202,6 +241,7 @@ export function pickPipelineTriggerRequestFormFields({
           ),
         });
         break;
+      case "array:audio":
       case "array:audio/*":
         items.push({
           key,
@@ -212,7 +252,7 @@ export function pickPipelineTriggerRequestFormFields({
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}
@@ -225,17 +265,19 @@ export function pickPipelineTriggerRequestFormFields({
           ),
         });
         break;
+      case "image":
       case "image/*":
         items.push({
           key,
           instillUIOrder: value.instillUiOrder,
           component: (
-            <TriggerRequestFormFields.ImageField
+            <TriggerRequestFormFields.FileAndStringUploadField
+              type="image"
               mode={mode}
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}
@@ -248,6 +290,7 @@ export function pickPipelineTriggerRequestFormFields({
           ),
         });
         break;
+      case "array:image":
       case "array:image/*":
         items.push({
           key,
@@ -258,7 +301,7 @@ export function pickPipelineTriggerRequestFormFields({
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}
@@ -272,17 +315,19 @@ export function pickPipelineTriggerRequestFormFields({
         });
         break;
 
+      case "video":
       case "video/*":
         items.push({
           key,
           instillUIOrder: value.instillUiOrder,
           component: (
-            <TriggerRequestFormFields.VideoField
+            <TriggerRequestFormFields.FileAndStringUploadField
+              type="video"
               mode={mode}
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}
@@ -295,6 +340,7 @@ export function pickPipelineTriggerRequestFormFields({
           ),
         });
         break;
+      case "array:video":
       case "array:video/*":
         items.push({
           key,
@@ -305,7 +351,7 @@ export function pickPipelineTriggerRequestFormFields({
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}
@@ -318,17 +364,19 @@ export function pickPipelineTriggerRequestFormFields({
           ),
         });
         break;
+      case "file":
       case "*/*":
         items.push({
           key,
           instillUIOrder: value.instillUiOrder,
           component: (
-            <TriggerRequestFormFields.FileField
+            <TriggerRequestFormFields.FileAndStringUploadField
+              type="file"
               mode={mode}
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}
@@ -341,6 +389,7 @@ export function pickPipelineTriggerRequestFormFields({
           ),
         });
         break;
+      case "array:file":
       case "array:*/*":
         items.push({
           key,
@@ -351,7 +400,7 @@ export function pickPipelineTriggerRequestFormFields({
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}
@@ -360,10 +409,60 @@ export function pickPipelineTriggerRequestFormFields({
               disabledFieldControl={disabledFieldControls}
               disabledReferenceHint={disabledReferenceHint}
               instillFormat={value.instillFormat}
+              accept="*/*"
             />
           ),
         });
         break;
+      case "document":
+        items.push({
+          key,
+          instillUIOrder: value.instillUiOrder,
+          component: (
+            <TriggerRequestFormFields.FileField
+              mode={mode}
+              key={key}
+              form={form}
+              path={key}
+              title={title}
+              onDeleteField={onDeleteField}
+              onEditField={onEditField}
+              description={value.description ?? null}
+              disabled={disabledFields}
+              keyPrefix={keyPrefix}
+              disabledFieldControl={disabledFieldControls}
+              disabledReferenceHint={disabledReferenceHint}
+              instillFormat={value.instillFormat}
+              accept={DocumentInputAcceptMimeTypes.join(",")}
+            />
+          ),
+        });
+        break;
+      case "array:document":
+        items.push({
+          key,
+          instillUIOrder: value.instillUiOrder,
+          component: (
+            <TriggerRequestFormFields.FilesField
+              mode={mode}
+              key={key}
+              form={form}
+              path={key}
+              title={title}
+              onDeleteField={onDeleteField}
+              onEditField={onEditField}
+              description={value.description ?? null}
+              disabled={disabledFields}
+              keyPrefix={keyPrefix}
+              disabledFieldControl={disabledFieldControls}
+              disabledReferenceHint={disabledReferenceHint}
+              instillFormat={value.instillFormat}
+              accept={DocumentInputAcceptMimeTypes.join(",")}
+            />
+          ),
+        });
+        break;
+      case "json":
       case "semi-structured/json":
         items.push({
           key,
@@ -374,7 +473,7 @@ export function pickPipelineTriggerRequestFormFields({
               key={key}
               form={form}
               path={key}
-              title={value.title}
+              title={title}
               onDeleteField={onDeleteField}
               onEditField={onEditField}
               description={value.description ?? null}

@@ -10,14 +10,15 @@ import {
 
 import {
   InstillStore,
+  Nullable,
   useInstillStore,
   useNamespacePipeline,
   useQueryClient,
   useRouteInfo,
   useShallow,
+  useSortedReleases,
 } from "../../../lib";
 import { PipelineTabNames } from "../../../server";
-import { useSortedReleases } from "../../pipeline-builder";
 import { Head } from "./Head";
 import { PipelineContentViewer } from "./PipelineContentViewer";
 
@@ -27,7 +28,7 @@ const selector = (store: InstillStore) => ({
 });
 
 export const ViewPipeline = () => {
-  const { tab } = useParams();
+  const { path } = useParams();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const shareCode = searchParams.get("view");
@@ -38,21 +39,36 @@ export const ViewPipeline = () => {
   const routeInfo = useRouteInfo();
 
   const pipeline = useNamespacePipeline({
-    namespacePipelineName: routeInfo.isSuccess
-      ? routeInfo.data.pipelineName
-      : null,
+    namespaceId: routeInfo.data.namespaceId,
+    pipelineId: routeInfo.data.resourceId,
     enabled: enabledQuery && routeInfo.isSuccess,
-    shareCode: shareCode ?? undefined,
+    shareCode,
+    view: "VIEW_FULL",
     accessToken,
   });
 
   const releases = useSortedReleases({
-    pipelineName: routeInfo.isSuccess ? routeInfo.data.pipelineName : null,
+    namespaceId: routeInfo.isSuccess ? routeInfo.data.namespaceId : null,
+    pipelineId: routeInfo.isSuccess ? routeInfo.data.resourceId : null,
     enabledQuery: enabledQuery && routeInfo.isSuccess,
+    shareCode,
     accessToken,
+    view: "VIEW_FULL",
   });
 
-  const updateActiveVersionUrl = (version: string) => {
+  React.useEffect(() => {
+    if (pipeline.isError) {
+      router.push("/404");
+    }
+  }, [pipeline.isError, router]);
+
+  const updateActiveVersionUrl = (version: Nullable<string>) => {
+    if (version === null) {
+      router.replace(pathname);
+
+      return;
+    }
+
     const newSearchParams = new URLSearchParams();
     newSearchParams.set("version", version);
 
@@ -65,22 +81,23 @@ export const ViewPipeline = () => {
   };
 
   React.useEffect(() => {
-    if (
-      releases.data.length === 0 ||
-      !releases.data[0] ||
-      (activeVersion && releases.data.find((item) => item.id === activeVersion))
-    ) {
-      return;
+    if (releases.isSuccess) {
+      if (activeVersion) {
+        if (releases.data.length > 0) {
+          if (
+            !releases.data.find((item) => item.id === activeVersion) &&
+            releases.data[0]
+          ) {
+            updateActiveVersionUrl(releases.data[0].id);
+          }
+        } else {
+          updateActiveVersionUrl(null);
+        }
+      } else if (releases.data[0]) {
+        updateActiveVersionUrl(releases.data[0].id);
+      }
     }
-
-    updateActiveVersionUrl(releases.data[0].id);
   }, [releases.isSuccess, releases.data, activeVersion, pathname]);
-
-  React.useEffect(() => {
-    if (pipeline.isError) {
-      router.push("/404");
-    }
-  }, [pipeline.isError, router]);
 
   const setSelectedTab = (tabName: PipelineTabNames) => {
     const currentSearchparams = searchParams.toString();
@@ -112,11 +129,11 @@ export const ViewPipeline = () => {
           releases={releases.data}
           pipeline={pipeline.data}
           isReady={isReady}
-          selectedTab={tab as PipelineTabNames}
+          selectedTab={path?.[0] as PipelineTabNames}
           onTabChange={setSelectedTab}
         />
         <PipelineContentViewer
-          selectedTab={tab as PipelineTabNames}
+          selectedTab={path?.[0] as PipelineTabNames}
           pipeline={pipeline.data}
           onUpdate={onPipelineUpdate}
           releases={releases.data}

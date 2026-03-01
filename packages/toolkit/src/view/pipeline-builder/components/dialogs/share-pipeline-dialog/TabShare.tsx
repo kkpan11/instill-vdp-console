@@ -1,23 +1,21 @@
 "use client";
 
+import type { UpdateNamespacePipelineRequest, UserOwner } from "instill-sdk";
 import * as React from "react";
-import { isAxiosError } from "axios";
-import { UpdateNamespacePipelineRequest } from "instill-sdk";
+import { InstillNameInterpreter } from "instill-sdk";
 
-import { Button, Icons, Separator, useToast } from "@instill-ai/design-system";
+import { Button, Icons, Separator } from "@instill-ai/design-system";
 
 import { LoadingSpin } from "../../../../../components";
 import { NamespaceAvatarWithFallback } from "../../../../../components/NamespaceAvatarWithFallback";
 import {
-  getInstillApiErrorMessage,
   InstillStore,
   Nullable,
-  OrganizationOwner,
   sendAmplitudeData,
+  toastInstillError,
   useAmplitudeCtx,
   useInstillStore,
   useNamespacePipeline,
-  UserOwner,
   useShallow,
   useUpdateNamespacePipeline,
 } from "../../../../../lib";
@@ -48,12 +46,17 @@ export const TabShare = ({
     React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
-  const { toast } = useToast();
-
   const pipeline = useNamespacePipeline({
-    namespacePipelineName: pipelineName,
+    namespaceId: pipelineName
+      ? InstillNameInterpreter.pipeline(pipelineName).namespaceId
+      : null,
+    pipelineId: pipelineName
+      ? InstillNameInterpreter.pipeline(pipelineName).resourceId
+      : null,
     enabled: enableQuery && !!pipelineName && !pipelineIsNew,
     accessToken,
+    view: "VIEW_FULL",
+    shareCode: null,
   });
 
   const pipelineIsPublic = React.useMemo(() => {
@@ -97,9 +100,10 @@ export const TabShare = ({
 
     let link: Nullable<string> = null;
 
-    if (!enabledShareByLink) {
+    if (!enabledShareByLink && pipelineName) {
       const payload: UpdateNamespacePipelineRequest = {
-        namespacePipelineName: pipelineName,
+        namespaceId: InstillNameInterpreter.pipeline(pipelineName).namespaceId,
+        pipelineId: InstillNameInterpreter.pipeline(pipelineName).resourceId,
         sharing: {
           users: pipeline.data.sharing.users,
           shareCode: {
@@ -128,21 +132,11 @@ export const TabShare = ({
         setIsUpdatingShareCodePermission(false);
       } catch (error) {
         setIsUpdatingShareCodePermission(false);
-        if (isAxiosError(error)) {
-          toast({
-            title: "Something went wrong when update pipeline permission",
-            variant: "alert-error",
-            size: "large",
-            description: getInstillApiErrorMessage(error),
-          });
-        } else {
-          toast({
-            title: "Something went wrong when update pipeline permission",
-            variant: "alert-error",
-            size: "large",
-            description: "Please try again later",
-          });
-        }
+
+        toastInstillError({
+          title: "Something went wrong when update pipeline permission",
+          error,
+        });
       }
     } else {
       link = `${env(
@@ -168,7 +162,6 @@ export const TabShare = ({
     namespaceId,
     id,
     updatePipeline,
-    toast,
     amplitudeIsInit,
     pipelineName,
   ]);
@@ -178,15 +171,9 @@ export const TabShare = ({
       return null;
     }
 
+    // In CE, owner is always a user (organizations are EE-only)
     if (pipeline.data.ownerName.split("/")[0] === "users") {
       return (pipeline.data.owner as UserOwner).user.profile?.avatar ?? null;
-    }
-
-    if (pipeline.data.ownerName.split("/")[0] === "organizations") {
-      return (
-        (pipeline.data.owner as OrganizationOwner).organization.profile
-          ?.avatar ?? null
-      );
     }
 
     return null;

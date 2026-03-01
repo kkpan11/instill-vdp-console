@@ -5,7 +5,11 @@ import cn from "clsx";
 import { Separator } from "@instill-ai/design-system";
 
 export const SettingTabRoot = ({ children }: { children: React.ReactNode }) => {
-  return <div className="flex w-full flex-col pl-8">{children}</div>;
+  return (
+    <div className="flex w-full flex-col pl-8 h-full overflow-y-auto">
+      {children}
+    </div>
+  );
 };
 
 export const SettingTabHeader = ({
@@ -14,7 +18,7 @@ export const SettingTabHeader = ({
   children,
 }: {
   title: string;
-  description: string;
+  description: string | React.ReactNode;
   children?: React.ReactNode;
 }) => {
   return (
@@ -23,9 +27,13 @@ export const SettingTabHeader = ({
         <h2 className="text-semantic-fg-primary product-body-text-1-semibold">
           {title}
         </h2>
-        <p className="text-semantic-fg-secondary product-body-text-3-regular">
-          {description}
-        </p>
+        {typeof description === "string" ? (
+          <p className="text-semantic-fg-secondary product-body-text-3-regular">
+            {description}
+          </p>
+        ) : (
+          description
+        )}
       </div>
       {children}
     </div>

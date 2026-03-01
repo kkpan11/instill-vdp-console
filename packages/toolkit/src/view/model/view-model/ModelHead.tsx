@@ -1,6 +1,10 @@
+"use client";
+
 import React, { useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import cn from "clsx";
+import { Model, ModelState } from "instill-sdk";
 
 import {
   getModelInstanceTaskToolkit,
@@ -12,12 +16,16 @@ import {
   Tag,
 } from "@instill-ai/design-system";
 
-import { HeadExternalLink, ModelStateLabel } from "../../../components";
+import {
+  HeadExternalLink,
+  ModelStateLabel,
+  VersionDropdownSelector,
+} from "../../../components";
 import { NamespaceAvatarWithFallback } from "../../../components/NamespaceAvatarWithFallback";
-import { Model, ModelState } from "../../../lib";
 import { ModelTabNames } from "../../../server";
 
 export type HeadProps = {
+  onActiveVersionUpdate: (version: string) => void;
   selectedTab: ModelTabNames;
   onTabChange: (tabName: ModelTabNames) => void;
   model?: Model;
@@ -32,12 +40,15 @@ const DEFAULT_OWNER = {
 };
 
 export const ModelHead = ({
+  onActiveVersionUpdate,
   selectedTab,
   onTabChange,
   model,
   isReady,
   modelState,
 }: HeadProps) => {
+  const searchParams = useSearchParams();
+  const activeVersion = searchParams.get("version");
   const owner = useMemo(() => {
     if (!model) {
       return DEFAULT_OWNER;
@@ -89,16 +100,23 @@ export const ModelHead = ({
                 /<span className="text-semantic-fg-primary">{model?.id}</span>
               </div>
               {modelState ? <ModelStateLabel state={modelState} /> : null}
-              {model?.visibility !== "VISIBILITY_PUBLIC" ? (
-                <Tag
-                  className="my-auto h-6 gap-x-1 !border-0 !py-0 !text-sm"
-                  variant="lightNeutral"
-                  size="sm"
-                >
-                  <Icons.Lock03 className="h-3 w-3 stroke-semantic-fg-primary" />
-                  Private
-                </Tag>
-              ) : null}
+              <Tag
+                className="my-auto h-6 gap-x-1 !border-0 !py-0 !text-sm"
+                variant="lightNeutral"
+                size="sm"
+              >
+                {model?.visibility !== "VISIBILITY_PUBLIC" ? (
+                  <React.Fragment>
+                    <Icons.Lock03 className="h-3 w-3 stroke-semantic-fg-primary" />
+                    Private
+                  </React.Fragment>
+                ) : (
+                  <React.Fragment>
+                    <Icons.BookOpen02 className="h-3 w-3 stroke-semantic-fg-primary" />
+                    Public
+                  </React.Fragment>
+                )}
+              </Tag>
               {model?.sourceUrl ? (
                 <HeadExternalLink href={model.sourceUrl}>
                   <GitHubIcon
@@ -123,6 +141,13 @@ export const ModelHead = ({
               ) : null}
             </React.Fragment>
           )}
+          {model?.versions.length ? (
+            <VersionDropdownSelector
+              activeVersion={activeVersion}
+              versions={model.versions}
+              onVersionUpdate={onActiveVersionUpdate}
+            />
+          ) : null}
         </div>
         {!isReady ? (
           <React.Fragment>
@@ -137,10 +162,20 @@ export const ModelHead = ({
               size="sm"
             >
               {task.getIcon(
-                `w-3 h-3 ${["TASK_TEXT_GENERATION_CHAT", "TASK_IMAGE_TO_IMAGE", "TASK_VISUAL_QUESTION_ANSWERING"].includes(model?.task || "") ? "stroke-semantic-secondary-on-bg [&>*]:!stroke-semantic-secondary-on-bg" : "[&>*]:!fill-semantic-secondary-on-bg"}`,
+                `w-3 h-3 ${["TASK_CHAT", "TASK_CUSTOM"].includes(model?.task || "") ? "stroke-semantic-secondary-on-bg [&>*]:!stroke-semantic-secondary-on-bg" : "[&>*]:!fill-semantic-secondary-on-bg"}`,
               )}
               {task.label}
             </Tag>
+            {model?.tags.map((tag) => (
+              <Tag
+                key={tag}
+                className="my-auto h-5 gap-x-1 !border-0 !py-0 text-semantic-secondary-on-bg"
+                variant="lightNeutral"
+                size="sm"
+              >
+                {tag}
+              </Tag>
+            ))}
             {/* TODO: uncomment and implement this when we have runs count available
               
               <Tag
@@ -202,6 +237,10 @@ export const ModelHead = ({
                   <Icons.Activity className="h-4 w-4" />
                   Predictions
                 </TabMenu.Item> */}
+              <TabMenu.Item value="runs">
+                <Icons.Zap className="h-4 w-4" />
+                Runs
+              </TabMenu.Item>
               <TabMenu.Item value="versions">
                 <Icons.ClockRewind className="h-4 w-4" />
                 Versions

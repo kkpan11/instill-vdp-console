@@ -10,7 +10,7 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as z from "zod";
 
-import { Button, Form, TabMenu, useToast } from "@instill-ai/design-system";
+import { Button, Form, TabMenu } from "@instill-ai/design-system";
 
 import {
   CodeBlock,
@@ -22,22 +22,31 @@ import { defaultCodeSnippetStyles } from "../../../constant";
 import {
   GeneralRecord,
   InstillStore,
+  isValidURL,
   Nullable,
-  onTriggerInvalidateCredits,
   sendAmplitudeData,
   toastInstillError,
   useAmplitudeCtx,
   useComponentOutputFields,
   useInstillStore,
   usePipelineTriggerRequestForm,
-  useQueryClient,
   useRouteInfo,
   useShallow,
   useTriggerNamespacePipeline,
   useTriggerNamespacePipelineRelease,
+  useUploadAndGetDownloadNamespaceObjectURL,
   useUserNamespaces,
 } from "../../../lib";
-import { recursiveHelpers } from "../../pipeline-builder";
+import { isArtifactRelatedInstillFormat } from "../../../lib/isArtifactRelatedInstillFormat";
+import {
+  getReferencesFromString,
+  recursiveHelpers,
+} from "../../pipeline-builder";
+import { VariableConnectToRunOnEvent } from "../../recipe-editor/input";
+import {
+  EventField,
+  listenWithType,
+} from "../../recipe-editor/input/EventField";
 import { RunButton } from "./RunButton";
 
 const selector = (store: InstillStore) => ({
@@ -46,7 +55,7 @@ const selector = (store: InstillStore) => ({
   navigationNamespaceAnchor: store.navigationNamespaceAnchor,
 });
 
-type ModelOutputActiveView = "preview" | "json";
+export type PipelineOutputActiveView = "preview" | "json";
 
 export const PipelinePlayground = ({
   releases,
@@ -60,12 +69,10 @@ export const PipelinePlayground = ({
   const searchParams = useSearchParams();
   const shareCode = searchParams.get("view");
   const currentVersion = searchParams.get("version");
-  const namespaces = useUserNamespaces();
-  const { toast } = useToast();
+  const userNamespaces = useUserNamespaces();
   const [isPipelineRunning, setIsPipelineRunning] = React.useState(false);
   const [outputActiveView, setOutputActiveView] =
-    React.useState<ModelOutputActiveView>("preview");
-  const queryClient = useQueryClient();
+    React.useState<PipelineOutputActiveView>("preview");
 
   const { accessToken, navigationNamespaceAnchor } = useInstillStore(
     useShallow(selector),
@@ -80,7 +87,7 @@ export const PipelinePlayground = ({
   const variables = React.useMemo(() => {
     if (pipeline) {
       if (!currentVersion || releases.length === 0) {
-        return pipeline.recipe.variable ?? null;
+        return pipeline.recipe?.variable ?? null;
       }
 
       const pipelineVersion = releases.find(
@@ -89,7 +96,7 @@ export const PipelinePlayground = ({
       );
 
       if (pipelineVersion) {
-        return pipelineVersion?.recipe.variable ?? null;
+        return pipelineVersion?.recipe?.variable ?? null;
       }
     }
 
@@ -99,7 +106,7 @@ export const PipelinePlayground = ({
   const outputs = React.useMemo(() => {
     if (pipeline) {
       if (!currentVersion || releases.length === 0) {
-        return pipeline.recipe.output ?? null;
+        return pipeline.recipe?.output ?? null;
       }
 
       const pipelineVersion = releases.find(
@@ -108,7 +115,7 @@ export const PipelinePlayground = ({
       );
 
       if (pipelineVersion) {
-        return pipelineVersion?.recipe.output ?? null;
+        return pipelineVersion?.recipe?.output ?? null;
       }
     }
 
@@ -144,42 +151,81 @@ export const PipelinePlayground = ({
     keyPrefix: "pipeline-details-page-trigger-pipeline-form",
     disabledFields: false,
     disabledFieldControls: true,
+    forceStringMultiline: true,
   });
 
   const componentOutputFields = useComponentOutputFields({
     mode: "demo",
     schema: formSchema?.output || null,
     data: pipelineRunResponse?.outputs[0] || null,
+    chooseTitleFrom: "title",
+    forceFormatted: true,
   });
 
   const triggerPipeline = useTriggerNamespacePipeline();
   const triggerPipelineRelease = useTriggerNamespacePipelineRelease();
-
+  const uploadAndGetDownloadNamespaceObjectURL =
+    useUploadAndGetDownloadNamespaceObjectURL();
   async function onTriggerPipeline(formData: z.infer<typeof ValidatorSchema>) {
-    if (!routeInfo.isSuccess || !routeInfo.data?.pipelineName || !pipeline) {
+    if (
+      !routeInfo.isSuccess ||
+      !routeInfo.data.resourceId ||
+      !routeInfo.data.namespaceId ||
+      !pipeline ||
+      !userNamespaces.isSuccess ||
+      !accessToken
+    ) {
       return;
     }
 
     setIsPipelineRunning(true);
 
-    const input = recursiveHelpers.removeUndefinedAndNullFromArray(
-      recursiveHelpers.replaceNullAndEmptyStringWithUndefined(formData),
+    const targetNamespace = userNamespaces.data.find(
+      (namespace) => namespace.id === navigationNamespaceAnchor,
     );
+
+    if (!targetNamespace) {
+      toastInstillError({
+        title: "Something went wrong, please refresh the page and try again",
+        error: new Error("Failed to find the target namespace"),
+      });
+      return;
+    }
 
     // Backend need to have the encoded JSON input. So we need to double check
     // the metadata whether this field is a semi-structured object and parse it
-
     const semiStructuredObjectKeys: string[] = [];
+
+    // For every type of file related fields, we need to upload the file to the artifact
+    const uploadedToArtifactKeys: string[] = [];
 
     if (variables) {
       Object.entries(variables).forEach(([key, value]) => {
-        if (value.instillFormat === "semi-structured/json") {
+        if (
+          value?.instillFormat === "semi-structured/json" ||
+          value?.instillFormat === "array:semi-structured/json" ||
+          value?.instillFormat === "json" ||
+          value?.instillFormat === "array:json"
+        ) {
           semiStructuredObjectKeys.push(key);
+        }
+
+        if (
+          value?.instillFormat === "file" ||
+          value?.instillFormat === "array:file" ||
+          value?.instillFormat === "image" ||
+          value?.instillFormat === "array:image" ||
+          value?.instillFormat === "video" ||
+          value?.instillFormat === "array:video" ||
+          value?.instillFormat === "audio" ||
+          value?.instillFormat === "array:audio"
+        ) {
+          uploadedToArtifactKeys.push(key);
         }
       });
     }
 
-    const parsedStructuredData: GeneralRecord = input;
+    const parsedStructuredData: GeneralRecord = formData;
 
     for (const key of semiStructuredObjectKeys) {
       if (!formData[key]) {
@@ -200,77 +246,213 @@ export const PipelinePlayground = ({
       }
     }
 
+    // The data comes from the form is either File or URL for these file related fields
+    // like image, video, audio, file
+    for (const key of uploadedToArtifactKeys) {
+      const targetValue = parsedStructuredData[key];
+      if (!targetValue) {
+        continue;
+      }
+
+      if (Array.isArray(targetValue)) {
+        const uploadURLs: string[] = [];
+
+        for (const item of targetValue) {
+          if (isValidURL(item)) {
+            uploadURLs.push(item);
+            continue;
+          }
+
+          const downloadURL = await uploadAndGetDownloadNamespaceObjectURL({
+            namespaceId: routeInfo.data.namespaceId,
+            accessToken,
+            object: item,
+          });
+
+          if (downloadURL) {
+            uploadURLs.push(downloadURL.downloadUrl);
+          }
+        }
+
+        parsedStructuredData[key] = uploadURLs;
+      } else {
+        if (isValidURL(targetValue)) {
+          parsedStructuredData[key] = targetValue;
+          continue;
+        }
+        const downloadURL = await uploadAndGetDownloadNamespaceObjectURL({
+          namespaceId: targetNamespace.id,
+          accessToken,
+          object: targetValue,
+        });
+
+        if (downloadURL) {
+          parsedStructuredData[key] = downloadURL.downloadUrl;
+        }
+      }
+    }
+
+    const input = recursiveHelpers.removeUndefinedAndNullFromArray(
+      recursiveHelpers.replaceNullAndEmptyStringWithUndefined(
+        parsedStructuredData,
+      ),
+    );
+
     // The user can trigger different version of pipeline when they are
     // pro or enterprise users
 
+    const downloadedFromArtifactKeys: string[] = [];
+
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    let pipelineRunResponse: any;
+
     if (!currentVersion) {
       try {
-        const targetNamespace = namespaces.find(
-          (namespace) => namespace.id === navigationNamespaceAnchor,
-        );
+        if (
+          pipeline &&
+          pipeline.dataSpecification &&
+          pipeline.dataSpecification.output &&
+          pipeline.dataSpecification.output.properties
+        ) {
+          Object.entries(pipeline.dataSpecification.output.properties).forEach(
+            ([key, value]) => {
+              if (isArtifactRelatedInstillFormat(value?.instillFormat)) {
+                downloadedFromArtifactKeys.push(key);
+              }
+            },
+          );
+        }
 
         const data = await triggerPipeline.mutateAsync({
-          namespacePipelineName: routeInfo.data.pipelineName,
+          namespaceId: routeInfo.data.namespaceId,
+          pipelineId: routeInfo.data.resourceId,
           accessToken,
-          inputs: [parsedStructuredData],
+          inputs: [input],
           returnTraces: true,
           shareCode: shareCode ?? undefined,
-          requesterUid: targetNamespace ? targetNamespace.uid : undefined,
-        });
-
-        onTriggerInvalidateCredits({
-          ownerName: targetNamespace?.name ?? null,
-          namespaceNames: namespaces.map((namespace) => namespace.name),
-          queryClient,
+          requesterId: targetNamespace ? targetNamespace.id : undefined,
+          stream: false,
         });
 
         if (amplitudeIsInit) {
-          sendAmplitudeData("trigger_pipeline");
+          sendAmplitudeData("trigger_pipeline", {
+            page_url: window.location.href,
+          });
         }
 
-        setPipelineRunResponse(data);
+        pipelineRunResponse = data;
       } catch (error) {
         toastInstillError({
           title: "Something went wrong when trigger the pipeline",
           error,
-          toast,
         });
       }
     } else {
+      const pipelineVersion = releases.find(
+        (release) =>
+          release.id === currentVersion || release.alias === currentVersion,
+      );
+
+      if (
+        pipelineVersion &&
+        pipelineVersion.dataSpecification &&
+        pipelineVersion.dataSpecification.output &&
+        pipelineVersion.dataSpecification.output.properties
+      ) {
+        Object.entries(
+          pipelineVersion.dataSpecification.output.properties,
+        ).forEach(([key, value]) => {
+          if (isArtifactRelatedInstillFormat(value?.instillFormat)) {
+            downloadedFromArtifactKeys.push(key);
+          }
+        });
+      }
+
       try {
-        const targetNamespace = namespaces.find(
+        const targetNamespace = userNamespaces.data.find(
           (namespace) => namespace.id === navigationNamespaceAnchor,
         );
 
         const data = await triggerPipelineRelease.mutateAsync({
-          namespacePipelineReleaseName: `${routeInfo.data.pipelineName}/releases/${currentVersion}`,
-          inputs: [parsedStructuredData],
+          namespaceId: routeInfo.data.namespaceId,
+          pipelineId: routeInfo.data.resourceId,
+          releaseId: currentVersion,
+          inputs: [input],
           accessToken,
           returnTraces: true,
           shareCode: shareCode ?? undefined,
-          requesterUid: targetNamespace ? targetNamespace.uid : undefined,
-        });
-
-        onTriggerInvalidateCredits({
-          ownerName: targetNamespace?.name ?? null,
-          namespaceNames: namespaces.map((namespace) => namespace.name),
-          queryClient,
+          requesterId: targetNamespace ? targetNamespace.id : undefined,
         });
 
         if (amplitudeIsInit) {
-          sendAmplitudeData("trigger_pipeline");
+          sendAmplitudeData("trigger_pipeline", {
+            page_url: window.location.href,
+          });
         }
 
-        setPipelineRunResponse(data);
+        pipelineRunResponse = data;
       } catch (error) {
         toastInstillError({
           title: "Something went wrong when trigger the pipeline",
           error,
-          toast,
         });
       }
     }
 
+    // Temp disable since the blob download URL's auth is currently
+    // disabled and is controlled by the expiration date
+    // for (const key of downloadedFromArtifactKeys) {
+    //   const targetValue = pipelineRunResponse.outputs[0][key];
+
+    //   if (!targetValue) {
+    //     continue;
+    //   }
+
+    //   if (Array.isArray(targetValue)) {
+    //     const downloadedArtifacts: string[] = [];
+    //     for (const item of targetValue) {
+    //       if (isValidURL(item) && isDownloadableArtifactBlobURL(item)) {
+    //         const response = await downloadNamespaceObject.mutateAsync({
+    //           payload: {
+    //             downloadUrl: item,
+    //           },
+    //           accessToken,
+    //         });
+
+    //         if (!response.ok) {
+    //           continue;
+    //         }
+
+    //         const blob = await response.blob();
+    //         const url = URL.createObjectURL(blob);
+    //         downloadedArtifacts.push(url);
+    //       }
+    //     }
+    //     pipelineRunResponse.outputs[0][key] = downloadedArtifacts;
+    //   } else {
+    //     if (
+    //       isValidURL(targetValue) &&
+    //       isDownloadableArtifactBlobURL(targetValue)
+    //     ) {
+    //       const response = await downloadNamespaceObject.mutateAsync({
+    //         payload: {
+    //           downloadUrl: targetValue,
+    //         },
+    //         accessToken,
+    //       });
+
+    //       if (!response.ok) {
+    //         continue;
+    //       }
+
+    //       const blob = await response.blob();
+    //       const url = URL.createObjectURL(blob);
+    //       pipelineRunResponse.outputs[0][key] = url;
+    //     }
+    //   }
+    // }
+
+    setPipelineRunResponse(pipelineRunResponse);
     setIsPipelineRunning(false);
   }
 
@@ -294,12 +476,76 @@ export const PipelinePlayground = ({
     return true;
   }, [outputs]);
 
+  const variablesConnectToRunOnEvent = React.useMemo(() => {
+    const on = pipeline?.recipe?.on;
+    const variable = pipeline?.recipe?.variable;
+
+    if (!on || !variable) {
+      return [];
+    }
+
+    const variablesConnectToRunOnEvent: VariableConnectToRunOnEvent[] = [];
+
+    Object.entries(variable).forEach(([key, value]) => {
+      if (!value) {
+        return;
+      }
+
+      if (value.listen) {
+        const listensWithType: listenWithType[] = [];
+
+        for (const listenItem of value.listen) {
+          const reference = getReferencesFromString(listenItem)[0];
+          if (!reference) {
+            continue;
+          }
+
+          // The referenceValue will looks like ${on.slack-0.message.text}
+          const referenceValueFrag =
+            reference.referenceValue.withoutCurlyBraces.split(".");
+          const eventKey = referenceValueFrag[1];
+          const eventType = eventKey ? on[eventKey] : undefined;
+
+          if (eventType) {
+            listensWithType.push({
+              reference: listenItem,
+              type: eventType.type,
+            });
+          }
+        }
+
+        variablesConnectToRunOnEvent.push({
+          listens: listensWithType,
+          key,
+          title: value.title,
+        });
+      }
+    });
+
+    return variablesConnectToRunOnEvent;
+  }, [pipeline?.recipe?.on, pipeline?.recipe?.variable]);
+
   if (!formSchema || !formSchema.input || !formSchema.output) {
     return (
       <EmptyView
         iconName="AlertCircle"
         title="Pipeline is not runnable"
-        description="This pipeline cannot be run. Please check the configuration and ensure all necessary components are set up correctly."
+        description={
+          <p className="product-body-text-2-regular text-center text-semantic-fg-secondary">
+            This pipeline cannot be run.{" "}
+            <span
+              onClick={() => {
+                router.push(
+                  `/${routeInfo.data.namespaceId}/pipelines/${routeInfo.data.resourceId}/editor`,
+                );
+              }}
+              className="cursor-pointer underline text-semantic-accent-default"
+            >
+              Please check the configuration
+            </span>{" "}
+            and ensure all necessary components are set up correctly.
+          </p>
+        }
         className="flex-1"
       />
     );
@@ -341,30 +587,41 @@ export const PipelinePlayground = ({
               </Button>
             </div>
           ) : (
-            <Form.Root {...form}>
-              <form
-                id={inOutPutFormID}
-                className="w-full"
-                onSubmit={form.handleSubmit(onTriggerPipeline)}
-              >
-                <div className="mb-5 flex flex-col gap-y-5">{fields}</div>
-                <div className="flex flex-row-reverse">
-                  {pipeline ? (
-                    <RunButton
-                      inOutPutFormID={inOutPutFormID}
-                      inputIsNotDefined={inputIsNotDefined}
-                      outputIsNotDefined={outputIsNotDefined}
-                      isTriggeringPipeline={
-                        triggerPipeline.isPending ||
-                        triggerPipelineRelease.isPending
-                      }
-                    />
-                  ) : (
-                    <div className="h-8 w-20 animate-pulse rounded bg-gradient-to-r from-[#DBDBDB]" />
-                  )}
-                </div>
-              </form>
-            </Form.Root>
+            <div className="flex flex-col gap-y-5">
+              <div className="flex flex-col gap-y-4">
+                {variablesConnectToRunOnEvent.map((variable) => (
+                  <EventField
+                    title={variable.title ?? variable.key}
+                    key={variable.key}
+                    listensWithType={variable.listens}
+                  />
+                ))}
+              </div>
+              <Form.Root {...form}>
+                <form
+                  id={inOutPutFormID}
+                  className="w-full"
+                  onSubmit={form.handleSubmit(onTriggerPipeline)}
+                >
+                  <div className="mb-5 flex flex-col gap-y-5">{fields}</div>
+                  <div className="flex flex-row-reverse">
+                    {pipeline ? (
+                      <RunButton
+                        inOutPutFormID={inOutPutFormID}
+                        inputIsNotDefined={inputIsNotDefined}
+                        outputIsNotDefined={outputIsNotDefined}
+                        isTriggeringPipeline={
+                          triggerPipeline.isPending ||
+                          triggerPipelineRelease.isPending
+                        }
+                      />
+                    ) : (
+                      <div className="h-8 w-20 animate-pulse rounded bg-gradient-to-r from-[#DBDBDB]" />
+                    )}
+                  </div>
+                </form>
+              </Form.Root>
+            </div>
           )
         ) : (
           <InOutputSkeleton />
@@ -373,13 +630,18 @@ export const PipelinePlayground = ({
       <div className="flex w-1/2 flex-col pb-6 pl-6">
         <ModelSectionHeader className="mb-3">Output</ModelSectionHeader>
         {isPipelineRunning ? (
-          <LoadingSpin className="!m-0 !text-semantic-fg-secondary" />
+          <div className="flex flex-col items-center justify-center">
+            <LoadingSpin className="!text-semantic-accent-hover !mb-10 !w-20 !h-20" />
+            <p className="text-semantic-fg-primary product-headings-heading-2 mb-2">
+              Running
+            </p>
+          </div>
         ) : pipelineRunResponse ? (
           <React.Fragment>
             <TabMenu.Root
               value={outputActiveView}
               onValueChange={(value: Nullable<string>) =>
-                setOutputActiveView(value as ModelOutputActiveView)
+                setOutputActiveView(value as PipelineOutputActiveView)
               }
               disabledDeSelect={true}
               className="mb-3 border-b border-semantic-bg-line"
@@ -424,7 +686,7 @@ export const PipelinePlayground = ({
               alt="Square shapes"
             />
             <p className="font-mono text-sm italic text-semantic-fg-disabled">
-              Execute the pipeline to view the results
+              Run the pipeline to view the results
             </p>
           </div>
         )}

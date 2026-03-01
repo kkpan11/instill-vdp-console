@@ -1,43 +1,53 @@
 import "whatwg-fetch";
 
+import { ArtifactClient } from "../artifact";
 import {
-  CreditClient,
+  IntegrationClient,
   MetricClient,
-  OrganizationClient,
-  SubscriptionClient,
   TokenClient,
   UserClient,
   UtilsClient,
-} from "../core";
+} from "../mgmt";
 import { ModelClient } from "../model";
-import { GeneralRecord, HttpMethod } from "../types";
-import { ComponentClient, PipelineClient } from "../vdp";
-import { ReleaseClient } from "../vdp/release";
-import { SecretClient } from "../vdp/secret";
-import { TriggerClient } from "../vdp/trigger";
+import { GeneralRecord, HttpMethod, InstillError } from "../types";
+import {
+  ComponentClient,
+  PipelineClient,
+  ReleaseClient,
+  SecretClient,
+  TriggerClient,
+} from "../pipeline";
 
 export type RequestOption = {
-  body?: string;
+  body?: string | Blob | File;
   additionalHeaders?: GeneralRecord;
+  stream?: boolean;
+  isFullPath?: boolean;
+  isVoidReturn?: boolean;
+  isBlob?: boolean;
 };
 
 export class InstillAPIClient {
   baseURL: string;
   apiToken: string | undefined;
   debug: boolean | undefined;
+  userProvidedAdditionalHeaders: GeneralRecord | undefined;
 
   constructor({
     baseURL,
     apiToken,
     debug,
+    userProvidedAdditionalHeaders,
   }: {
     baseURL: string;
     apiToken?: string;
     debug?: boolean;
+    userProvidedAdditionalHeaders?: GeneralRecord;
   }) {
     this.baseURL = baseURL;
     this.apiToken = apiToken;
     this.debug = debug;
+    this.userProvidedAdditionalHeaders = userProvidedAdditionalHeaders;
   }
 
   async get<Rsp>(path: string, opt?: RequestOption): Promise<Rsp> {
@@ -65,30 +75,50 @@ export class InstillAPIClient {
     path: string,
     opt?: RequestOption,
   ): Promise<Rsp> {
+    const requestPath = opt?.isFullPath ? path : `${this.baseURL}${path}`;
+
     try {
-      const response = await fetch(`${this.baseURL}${path}`, {
+      const response = await fetch(requestPath, {
         method,
         headers: this.apiToken
           ? {
               "Content-Type": "application/json",
               Authorization: `Bearer ${this.apiToken}`,
               ...opt?.additionalHeaders,
+              ...this.userProvidedAdditionalHeaders,
             }
           : {
               "Content-Type": "application/json",
               ...opt?.additionalHeaders,
+              ...this.userProvidedAdditionalHeaders,
             },
         body: opt?.body,
       });
+
+      if (opt && opt.stream) {
+        return response as Rsp;
+      }
+
+      if (opt && opt.isBlob) {
+        return response as Rsp;
+      }
 
       if (!response.ok) {
         if (this.debug) {
           console.error(response);
         }
-        throw new Error(`Failed to fetch ${path}`);
+
+        if (response.status === 404) {
+          return Promise.reject(new InstillError("Not Found", 404));
+        }
+
+        const error = await response.json();
+        return Promise.reject(
+          new InstillError(error.message, response.status, error),
+        );
       }
 
-      if (method === "DELETE") {
+      if (method === "DELETE" || opt?.isVoidReturn) {
         return Promise.resolve() as Promise<Rsp>;
       }
 
@@ -99,7 +129,7 @@ export class InstillAPIClient {
     }
   }
 
-  vdp = {
+  pipeline = {
     component: new ComponentClient(this),
     pipeline: new PipelineClient(this),
     release: new ReleaseClient(this),
@@ -107,15 +137,15 @@ export class InstillAPIClient {
     secret: new SecretClient(this),
   };
 
-  core = {
+  // NOTE: organization, membership, and subscription clients are EE-only (available in console-ee)
+  mgmt = {
     metric: new MetricClient(this),
     user: new UserClient(this),
-    organization: new OrganizationClient(this),
     token: new TokenClient(this),
-    subscription: new SubscriptionClient(this),
-    credit: new CreditClient(this),
     utils: new UtilsClient(this),
+    integration: new IntegrationClient(this),
   };
 
   model = new ModelClient(this);
+  artifact = new ArtifactClient(this);
 }

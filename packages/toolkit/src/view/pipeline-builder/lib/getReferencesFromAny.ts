@@ -11,10 +11,12 @@ export function getReferencesFromAny(value: any) {
     references: InstillReference[] = [],
   ): InstillReference[] {
     if (Array.isArray(value)) {
+      const refs = [...references];
       for (const item of value) {
-        const refs = getReferences(item, references);
-        return [...references, ...refs];
+        const itemRefs = getReferences(item, references);
+        refs.push(...itemRefs);
       }
+      return refs;
     } else if (typeof value === "string") {
       const refs = getReferencesFromString(value);
 
@@ -22,11 +24,11 @@ export function getReferencesFromAny(value: any) {
         return [...references, ...refs];
       }
     } else if (typeof value === "object" && value !== null) {
-      let refs = [...references];
+      const refs = [...references];
 
       for (const nestedKey in value) {
         if (value[nestedKey] !== null) {
-          refs = [...refs, ...getReferences(value[nestedKey])];
+          refs.push(...getReferences(value[nestedKey]));
         }
       }
 

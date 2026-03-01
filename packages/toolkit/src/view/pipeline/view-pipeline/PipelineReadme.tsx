@@ -2,13 +2,13 @@
 
 import type { Pipeline } from "instill-sdk";
 import * as React from "react";
-
-import { useToast } from "@instill-ai/design-system";
+import { InstillNameInterpreter } from "instill-sdk";
 
 import { ReadmeEditor } from "../../../components";
 import {
   InstillStore,
   sendAmplitudeData,
+  toastInstillSuccess,
   useAmplitudeCtx,
   useInstillStore,
   useShallow,
@@ -27,7 +27,6 @@ export type PipelineReadmeProps = {
 export const PipelineReadme = ({ pipeline, onUpdate }: PipelineReadmeProps) => {
   const { amplitudeIsInit } = useAmplitudeCtx();
   const { accessToken } = useInstillStore(useShallow(selector));
-  const { toast } = useToast();
   const canEdit = React.useMemo(() => {
     return !!accessToken && !!pipeline?.permission.canEdit;
   }, [pipeline, accessToken]);
@@ -39,8 +38,11 @@ export const PipelineReadme = ({ pipeline, onUpdate }: PipelineReadmeProps) => {
       return;
     }
 
+    const instillName = InstillNameInterpreter.pipeline(pipeline.name);
+
     await updatePipeline.mutateAsync({
-      namespacePipelineName: pipeline.name,
+      namespaceId: instillName.namespaceId,
+      pipelineId: instillName.resourceId,
       readme,
       accessToken,
     });
@@ -49,10 +51,8 @@ export const PipelineReadme = ({ pipeline, onUpdate }: PipelineReadmeProps) => {
       sendAmplitudeData("update_pipeline_readme");
     }
 
-    toast({
-      size: "small",
+    toastInstillSuccess({
       title: "Pipeline readme updated successfully",
-      variant: "alert-success",
     });
 
     onUpdate();
@@ -70,7 +70,7 @@ export const PipelineReadme = ({ pipeline, onUpdate }: PipelineReadmeProps) => {
           ? `You don't have a README. You can start creating one by clicking **Edit** icon in the top right corner.`
           : "There is no README for this pipeline."
       }
-      className="flex-1 flex flex-col [&>.markdown-body]:flex-1"
+      className="flex-1 flex flex-col"
     />
   );
 };

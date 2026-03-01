@@ -1,28 +1,48 @@
 {
   "$schema": "https://turborepo.org/schema.json",
+  "ui": "tui",
   "tasks": {
+    "topo": {
+      "dependsOn": ["^topo"]
+    },
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "storybook-static/**"]
     },
-    "lint": {
-      "outputs": [],
-      "dependsOn": ["build"]
-    },
     "dev": {
-      "cache": false
+      "cache": false,
+      "persistent": true
+    },
+    "dev-ts": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": ["*"]
+    },
+    "lint": {
+      "dependsOn": ["^topo", "^build"],
+      "outputs": [".cache/.eslintcache"]
     },
     "test": {
       "dependsOn": ["build"]
     }
   },
   "globalEnv": [
+    "NEXT_PUBLIC_INSTILL_AI_SCHEDULE_MEETING_LINK",
     "NEXT_PUBLIC_GENERAL_API_VERSION",
     "NEXT_PUBLIC_MODEL_API_VERSION",
     "NODE_ENV",
     "NEXT_PUBLIC_API_GATEWAY_URL",
     "NEXT_SERVER_API_GATEWAY_URL",
     "NEXT_PUBLIC_CONSOLE_BASE_URL",
-    "INSTILL_API_VERSION"
+    "INSTILL_API_VERSION",
+    "INTEGRATION_GOOGLE_DRIVE_CLIENT_ID",
+    "INTEGRATION_GOOGLE_DRIVE_CLIENT_SECRET",
+    "INTEGRATION_GOOGLE_SHEETS_CLIENT_ID",
+    "INTEGRATION_GOOGLE_SHEETS_CLIENT_SECRET",
+    "INTEGRATION_GITHUB_CLIENT_ID",
+    "INTEGRATION_GITHUB_CLIENT_SECRET",
+    "INTEGRATION_SLACK_CLIENT_ID",
+    "INTEGRATION_SLACK_CLIENT_SECRET",
+    "NEXT_PUBLIC_APPLICATION_API_VERSION"
   ]
 }

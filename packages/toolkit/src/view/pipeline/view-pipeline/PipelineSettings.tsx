@@ -17,14 +17,14 @@ import {
   Input,
   RadioGroup,
   Textarea,
-  useToast,
 } from "@instill-ai/design-system";
 
-import { LoadingSpin, UploadImageFieldWithCrop } from "../../../components";
+import { LoadingSpin } from "../../../components";
 import {
   Nullable,
   sendAmplitudeData,
   toastInstillError,
+  toastInstillSuccess,
   useAmplitudeCtx,
   useInstillStore,
   useRouteInfo,
@@ -36,7 +36,6 @@ const PipelineSettingsSchema = z.object({
   sourceUrl: z.literal("").or(z.string().url()),
   documentationUrl: z.literal("").or(z.string().url()),
   license: z.literal("").or(z.string().url()),
-  profileImage: z.string().optional(),
   isPublic: z.string(),
   tags: z.string().optional(),
 });
@@ -60,7 +59,6 @@ export const PipelineSettings = ({
       sourceUrl: pipeline.sourceUrl,
       documentationUrl: pipeline.documentationUrl,
       license: pipeline.license,
-      profileImage: pipeline.profileImage,
       isPublic: (!!pipeline.sharing.users["*/*"]?.enabled).toString(),
       tags: pipeline.tags.join(", "),
     };
@@ -71,12 +69,16 @@ export const PipelineSettings = ({
   });
 
   const accessToken = useInstillStore((store) => store.accessToken);
-  const { toast } = useToast();
   const routeInfo = useRouteInfo();
 
   const updateUserPipeline = useUpdateNamespacePipeline();
   async function onSubmit(data: z.infer<typeof PipelineSettingsSchema>) {
-    if (!routeInfo.isSuccess || !routeInfo?.data.pipelineName || !accessToken) {
+    if (
+      !routeInfo.isSuccess ||
+      !routeInfo.data.namespaceId ||
+      !routeInfo.data.resourceId ||
+      !accessToken
+    ) {
       return;
     }
 
@@ -93,12 +95,12 @@ export const PipelineSettings = ({
     };
 
     const payload: UpdateNamespacePipelineRequest = {
-      namespacePipelineName: routeInfo.data.pipelineName,
+      namespaceId: routeInfo.data.namespaceId,
+      pipelineId: routeInfo.data.resourceId,
       description: data.description ?? undefined,
       sourceUrl: data.sourceUrl,
       documentationUrl: data.documentationUrl,
       license: data.license,
-      profileImage: data.profileImage,
       sharing: {
         ...sharing,
         users: {
@@ -111,6 +113,7 @@ export const PipelineSettings = ({
       tags:
         data.tags
           ?.trim()
+          .toLowerCase()
           .split(",")
           .map((item) => item.trim())
           .filter((item) => item) || [],
@@ -129,19 +132,15 @@ export const PipelineSettings = ({
         sendAmplitudeData("update_pipeline_description");
       }
 
-      toast({
-        size: "small",
+      toastInstillSuccess({
         title: "Update pipeline metadata successfully",
-        variant: "alert-success",
       });
     } catch (error) {
       setUpdating(false);
-
       toastInstillError({
         title:
           "Something went wrong, Please refresh the page and try again later",
         error,
-        toast,
       });
     }
   }
@@ -200,11 +199,6 @@ export const PipelineSettings = ({
                   </Form.Item>
                 );
               }}
-            />
-            <UploadImageFieldWithCrop
-              fieldName="profileImage"
-              form={form}
-              title="Cover image"
             />
             <RadioGroup.Root
               onValueChange={(value: "true" | "false") => {
@@ -272,6 +266,11 @@ export const PipelineSettings = ({
                           placeholder="Add a tag"
                           required={false}
                           value={field.value || ""}
+                          onChange={(event) =>
+                            field.onChange(
+                              event.target.value.toLocaleLowerCase(),
+                            )
+                          }
                         />
                       </Input.Root>
                     </Form.Control>

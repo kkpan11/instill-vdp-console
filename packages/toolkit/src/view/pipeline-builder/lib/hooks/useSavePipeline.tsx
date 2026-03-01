@@ -1,13 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { isAxiosError } from "axios";
 import {
   CreateNamespacePipelineRequest,
   UpdateNamespacePipelineRequest,
 } from "instill-sdk";
-
-import { useToast } from "@instill-ai/design-system";
 
 import {
   composeEdgesFromNodes,
@@ -15,9 +12,10 @@ import {
   composePipelineRecipeFromNodes,
 } from "..";
 import {
-  getInstillApiErrorMessage,
   InstillStore,
   sendAmplitudeData,
+  toastInstillError,
+  toastInstillSuccess,
   useAmplitudeCtx,
   useCreateNamespacePipeline,
   useInstillStore,
@@ -55,7 +53,6 @@ export type UseSavePipelineProps =
 export function useSavePipeline(props: UseSavePipelineProps = {}) {
   const { setIsSaving } = props;
   const routeInfo = useRouteInfo();
-  const { toast } = useToast();
   const { amplitudeIsInit } = useAmplitudeCtx();
   const updatePipeline = useUpdateNamespacePipeline();
   const createPipeline = useCreateNamespacePipeline();
@@ -81,8 +78,8 @@ export function useSavePipeline(props: UseSavePipelineProps = {}) {
       if (
         !pipelineId ||
         !routeInfo.isSuccess ||
-        !routeInfo.data.pipelineName ||
-        !routeInfo.data.namespaceName
+        !routeInfo.data.namespaceId ||
+        !routeInfo.data.resourceId
       ) {
         return;
       }
@@ -103,7 +100,8 @@ export function useSavePipeline(props: UseSavePipelineProps = {}) {
 
       if (!pipelineIsNew && pipelineRecipeIsDirty) {
         const payload: UpdateNamespacePipelineRequest = {
-          namespacePipelineName: routeInfo.data.pipelineName,
+          namespaceId: routeInfo.data.namespaceId,
+          pipelineId: routeInfo.data.resourceId,
           recipe: composePipelineRecipeFromNodes(targetNodes),
           metadata: composePipelineMetadataMapFromNodes(targetNodes),
         };
@@ -116,6 +114,10 @@ export function useSavePipeline(props: UseSavePipelineProps = {}) {
 
           if (amplitudeIsInit) {
             sendAmplitudeData("update_pipeline_recipe");
+          }
+
+          if (!newPipeline.recipe) {
+            return;
           }
 
           const newNodes = createNodesFromPipelineRecipe(newPipeline.recipe, {
@@ -131,28 +133,16 @@ export function useSavePipeline(props: UseSavePipelineProps = {}) {
             updateEdges(() => newEdges);
           }
 
-          toast({
+          toastInstillSuccess({
             title: "Pipeline is saved",
-            variant: "alert-success",
-            size: "small",
           });
 
           updatePipelineRecipeIsDirty(() => false);
         } catch (error) {
-          if (isAxiosError(error)) {
-            toast({
-              title: "Something went wrong when save the pipeline",
-              description: getInstillApiErrorMessage(error),
-              variant: "alert-error",
-              size: "large",
-            });
-          } else {
-            toast({
-              title: "Something went wrong when save the pipeline",
-              variant: "alert-error",
-              size: "large",
-            });
-          }
+          toastInstillError({
+            title: "Something went wrong when save the pipeline",
+            error,
+          });
         }
 
         if (setIsSaving) {
@@ -165,7 +155,7 @@ export function useSavePipeline(props: UseSavePipelineProps = {}) {
       // If the user haven't created the pipeline yet, we will create the pipeline
 
       const payload: CreateNamespacePipelineRequest = {
-        namespaceName: routeInfo.data.namespaceName,
+        namespaceId: routeInfo.data.namespaceId,
         id: pipelineId,
         recipe: composePipelineRecipeFromNodes(targetNodes),
         metadata: composePipelineMetadataMapFromNodes(targetNodes),
@@ -176,6 +166,10 @@ export function useSavePipeline(props: UseSavePipelineProps = {}) {
           payload,
           accessToken,
         });
+
+        if (!newPipeline.recipe) {
+          return;
+        }
 
         const newNodes = createNodesFromPipelineRecipe(newPipeline.recipe, {
           metadata: newPipeline.metadata,
@@ -196,26 +190,14 @@ export function useSavePipeline(props: UseSavePipelineProps = {}) {
           sendAmplitudeData("create_pipeline");
         }
 
-        toast({
+        toastInstillSuccess({
           title: "Successfully saved the pipeline",
-          variant: "alert-success",
-          size: "small",
         });
       } catch (error) {
-        if (isAxiosError(error)) {
-          toast({
-            title: "Something went wrong when save the pipeline",
-            description: getInstillApiErrorMessage(error),
-            variant: "alert-error",
-            size: "large",
-          });
-        } else {
-          toast({
-            title: "Something went wrong when save the pipeline",
-            variant: "alert-error",
-            size: "large",
-          });
-        }
+        toastInstillError({
+          title: "Something went wrong when save the pipeline",
+          error,
+        });
       }
 
       if (setIsSaving) {
@@ -232,7 +214,6 @@ export function useSavePipeline(props: UseSavePipelineProps = {}) {
       pipelineId,
       pipelineIsNew,
       pipelineRecipeIsDirty,
-      toast,
       updatePipelineIsNew,
       updatePipelineRecipeIsDirty,
       updatePipeline,

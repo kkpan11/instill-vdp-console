@@ -2,24 +2,18 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { isAxiosError } from "axios";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-import {
-  Button,
-  Dialog,
-  Form,
-  Input,
-  useToast,
-} from "@instill-ai/design-system";
+import { Button, Dialog, Form, Input } from "@instill-ai/design-system";
 
 import { LoadingSpin } from "../../../components";
 import {
-  getInstillApiErrorMessage,
   sendAmplitudeData,
+  toastInstillError,
+  toastInstillSuccess,
   useAmplitudeCtx,
-  useDeleteApiToken,
+  useDeleteAPIToken,
   useInstillStore,
 } from "../../../lib";
 
@@ -27,7 +21,7 @@ const DeleteAPITokenSchema = z.object({
   code: z.string().min(1, "Code is required"),
 });
 
-export const DeleteAPITokenDialog = ({ tokenName }: { tokenName: string }) => {
+export const DeleteAPITokenDialog = ({ tokenId }: { tokenId: string }) => {
   const { amplitudeIsInit } = useAmplitudeCtx();
   const [open, setOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -40,9 +34,7 @@ export const DeleteAPITokenDialog = ({ tokenName }: { tokenName: string }) => {
     },
   });
 
-  const { toast } = useToast();
-
-  const deleteAPIToken = useDeleteApiToken();
+  const deleteAPIToken = useDeleteAPIToken();
 
   const handleDeleteApiToken = async () => {
     if (!accessToken) return;
@@ -50,7 +42,7 @@ export const DeleteAPITokenDialog = ({ tokenName }: { tokenName: string }) => {
 
     try {
       await deleteAPIToken.mutateAsync({
-        tokenName,
+        tokenId,
         accessToken,
       });
       setIsLoading(false);
@@ -60,21 +52,14 @@ export const DeleteAPITokenDialog = ({ tokenName }: { tokenName: string }) => {
       }
 
       setOpen(false);
-      toast({
+
+      toastInstillSuccess({
         title: "API token deleted successfully",
-        variant: "alert-success",
-        size: "small",
       });
     } catch (error) {
-      const description = isAxiosError(error)
-        ? getInstillApiErrorMessage(error)
-        : null;
-
-      toast({
+      toastInstillError({
         title: "Something went wrong when deleting the token",
-        variant: "alert-error",
-        size: "large",
-        description,
+        error,
       });
     }
   };
@@ -128,7 +113,7 @@ export const DeleteAPITokenDialog = ({ tokenName }: { tokenName: string }) => {
                           <Form.Label className="!block" htmlFor={field.name}>
                             Please type
                             <span className="mx-1 select-all font-bold">
-                              {tokenName}
+                              {tokenId}
                             </span>
                             to confirm.
                           </Form.Label>
@@ -163,7 +148,7 @@ export const DeleteAPITokenDialog = ({ tokenName }: { tokenName: string }) => {
                     className="w-full flex-1"
                     variant="primary"
                     size="lg"
-                    disabled={form.watch("code") === tokenName ? false : true}
+                    disabled={form.watch("code") === tokenId ? false : true}
                   >
                     {isLoading ? <LoadingSpin /> : "Delete Token"}
                   </Button>

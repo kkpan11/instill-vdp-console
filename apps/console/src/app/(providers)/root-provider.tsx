@@ -3,7 +3,6 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 
-import { Toaster, useToast } from "@instill-ai/design-system";
 import {
   InstillStore,
   Nullable,
@@ -19,22 +18,33 @@ import { ReactQueryProvider } from "./react-query-client-provider";
 
 const selector = (store: InstillStore) => ({
   initPipelineBuilder: store.initPipelineBuilder,
-  initIteratorRelatedState: store.initIteratorRelatedState,
+  updateFeatureFlagChatEnabled: store.updateFeatureFlagChatEnabled,
 });
 
-export const RootProvider = ({ children }: { children: React.ReactNode }) => {
+export const RootProvider = ({
+  children,
+  featureFlagChatEnabled,
+}: {
+  children: React.ReactNode;
+  featureFlagChatEnabled: boolean;
+}) => {
   const pathname = usePathname();
   const [previousPathname, setPreviousPathname] =
     React.useState<Nullable<string>>(null);
 
-  const { initPipelineBuilder } = useInstillStore(useShallow(selector));
+  const { initPipelineBuilder, updateFeatureFlagChatEnabled } = useInstillStore(
+    useShallow(selector),
+  );
 
   const initCreateResourceFormStore = useCreateResourceFormStore(
     (store) => store.init,
   );
+
   const closeModal = useModalStore((store) => store.closeModal);
 
-  const { dismiss: dismissToast } = useToast();
+  React.useEffect(() => {
+    updateFeatureFlagChatEnabled(() => featureFlagChatEnabled);
+  }, [featureFlagChatEnabled, updateFeatureFlagChatEnabled]);
 
   React.useEffect(() => {
     // When ever user leave /editor page to what ever destination
@@ -55,22 +65,12 @@ export const RootProvider = ({ children }: { children: React.ReactNode }) => {
 
     initCreateResourceFormStore();
     closeModal();
-    dismissToast();
     setPreviousPathname(pathname);
   }, [pathname]);
 
   return (
     <ReactQueryProvider>
-      <AmplitudeProvider>
-        {children}
-        <Toaster
-          additionalViewPortClassName={
-            pathnameEvaluator.isPipelineBuilderPage(pathname)
-              ? "!top-[var(--topbar-controller-height)]"
-              : "!top-[calc(var(--topbar-controller-height)+var(--topbar-nav-height))]"
-          }
-        />
-      </AmplitudeProvider>
+      <AmplitudeProvider>{children}</AmplitudeProvider>
     </ReactQueryProvider>
   );
 };

@@ -3,25 +3,23 @@
 import * as React from "react";
 import { arrayMove } from "@dnd-kit/sortable";
 import { zodResolver } from "@hookform/resolvers/zod";
-import cn from "clsx";
+import { InstillNameInterpreter } from "instill-sdk";
 import { useForm } from "react-hook-form";
 import { NodeProps } from "reactflow";
 import * as z from "zod";
 import { useShallow } from "zustand/react/shallow";
 
-import { Button, Form, Icons, useToast } from "@instill-ai/design-system";
+import { Button, cn, Form, Icons } from "@instill-ai/design-system";
 
 import {
   GeneralRecord,
   InstillStore,
   Nullable,
-  onTriggerInvalidateCredits,
   sendAmplitudeData,
   toastInstillError,
   useAmplitudeCtx,
   useInstillStore,
   usePipelineTriggerRequestForm,
-  useQueryClient,
   useTriggerNamespacePipeline,
   useTriggerNamespacePipelineRelease,
   useUserNamespaces,
@@ -66,7 +64,6 @@ const selector = (store: InstillStore) => ({
 });
 
 export const VariableNode = ({ data, id }: NodeProps<TriggerNodeData>) => {
-  const queryClient = useQueryClient();
   const { amplitudeIsInit } = useAmplitudeCtx();
   const [noteIsOpen, setNoteIsOpen] = React.useState<boolean>(false);
   const [nodeIsCollapsed, setNodeIsCollapsed] = React.useState(false);
@@ -88,8 +85,6 @@ export const VariableNode = ({ data, id }: NodeProps<TriggerNodeData>) => {
     navigationNamespaceAnchor,
   } = useInstillStore(useShallow(selector));
 
-  const { toast } = useToast();
-
   const [selectedType, setSelectedType] =
     React.useState<Nullable<string>>(null);
   const [currentEditingFieldKey, setCurrentEditingFieldKey] =
@@ -97,7 +92,7 @@ export const VariableNode = ({ data, id }: NodeProps<TriggerNodeData>) => {
   const [isEditing, setIsEditing] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
 
-  const namespaces = useUserNamespaces();
+  const userNamespaces = useUserNamespaces();
 
   const form = useForm<z.infer<typeof TriggerNodeFreeFormSchema>>({
     resolver: zodResolver(TriggerNodeFreeFormSchema),
@@ -264,7 +259,7 @@ export const VariableNode = ({ data, id }: NodeProps<TriggerNodeData>) => {
   async function onTriggerPipeline(
     formData: z.infer<typeof TriggerPipelineFormSchema>,
   ) {
-    if (!pipelineName || !formData) return;
+    if (!pipelineName || !formData || !userNamespaces.isSuccess) return;
 
     const input = recursiveHelpers.removeUndefinedAndNullFromArray(
       recursiveHelpers.replaceNullAndEmptyStringWithUndefined(formData),
@@ -276,7 +271,7 @@ export const VariableNode = ({ data, id }: NodeProps<TriggerNodeData>) => {
     const semiStructuredObjectKeys: string[] = [];
 
     Object.entries(data.fields).forEach(([key, value]) => {
-      if (value.instillFormat === "semi-structured/json") {
+      if (value?.instillFormat === "semi-structured/json") {
         semiStructuredObjectKeys.push(key);
       }
     });
@@ -306,28 +301,27 @@ export const VariableNode = ({ data, id }: NodeProps<TriggerNodeData>) => {
     // The user can trigger different version of pipleine when they are
     // pro or enterprise users
 
+    const instillName = InstillNameInterpreter.pipeline(pipelineName);
+
     if (currentVersion === "latest") {
       try {
-        const targetNamespace = namespaces.find(
+        const targetNamespace = userNamespaces.data.find(
           (ns) => ns.id === navigationNamespaceAnchor,
         );
 
         const data = await triggerPipeline.mutateAsync({
-          namespacePipelineName: pipelineName,
+          namespaceId: instillName.namespaceId,
+          pipelineId: instillName.resourceId,
           accessToken,
           inputs: [parsedStructuredData],
           returnTraces: true,
-          requesterUid: targetNamespace ? targetNamespace.uid : undefined,
-        });
-
-        onTriggerInvalidateCredits({
-          ownerName: targetNamespace?.name ?? null,
-          namespaceNames: namespaces.map((namespace) => namespace.name),
-          queryClient,
+          requesterId: targetNamespace ? targetNamespace.id : undefined,
         });
 
         if (amplitudeIsInit) {
-          sendAmplitudeData("trigger_pipeline");
+          sendAmplitudeData("trigger_pipeline", {
+            page_url: window.location.href,
+          });
         }
 
         updateIsTriggeringPipeline(() => false);
@@ -337,31 +331,32 @@ export const VariableNode = ({ data, id }: NodeProps<TriggerNodeData>) => {
         toastInstillError({
           title: "Something went wrong when trigger the pipeline",
           error,
-          toast,
         });
       }
     } else {
+      if (!currentVersion) {
+        return;
+      }
+
       try {
-        const targetNamespace = namespaces.find(
+        const targetNamespace = userNamespaces.data.find(
           (ns) => ns.id === navigationNamespaceAnchor,
         );
 
         const data = await triggerPipelineRelease.mutateAsync({
-          namespacePipelineReleaseName: `${pipelineName}/releases/${currentVersion}`,
+          namespaceId: instillName.namespaceId,
+          pipelineId: instillName.resourceId,
+          releaseId: currentVersion,
           inputs: [parsedStructuredData],
           accessToken,
           returnTraces: true,
-          requesterUid: targetNamespace ? targetNamespace.uid : undefined,
-        });
-
-        onTriggerInvalidateCredits({
-          ownerName: targetNamespace?.name ?? null,
-          namespaceNames: namespaces.map((namespace) => namespace.name),
-          queryClient,
+          requesterId: targetNamespace ? targetNamespace.id : undefined,
         });
 
         if (amplitudeIsInit) {
-          sendAmplitudeData("trigger_pipeline");
+          sendAmplitudeData("trigger_pipeline", {
+            page_url: window.location.href,
+          });
         }
 
         updateIsTriggeringPipeline(() => false);
@@ -371,7 +366,6 @@ export const VariableNode = ({ data, id }: NodeProps<TriggerNodeData>) => {
         toastInstillError({
           title: "Something went wrong when trigger the pipeline",
           error,
-          toast,
         });
       }
     }

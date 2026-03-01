@@ -2,25 +2,16 @@
  * @type {import('next').NextConfig}
  */
 module.exports = {
-  swcMinify: true,
   reactStrictMode: true,
   transpilePackages: [
-    '@mdxeditor/editor',
+    "@mdxeditor/editor",
     "@instill-ai/toolkit",
     "@instill-ai/design-system",
     "@instill-ai/design-tokens",
   ],
-  webpack: (config) => {
-    // if (isServer) {
-    //   require("./lib/generate-sitemap");
-    // }
-
-    return config;
-  },
   output: "standalone",
-  outputFileTracing: true,
-  experimental: {
-    forceSwcTransforms: true,
+  compiler: {
+    styledJsx: true,
   },
   redirects: async function () {
     return [
@@ -30,5 +21,9 @@ module.exports = {
         permanent: false,
       },
     ];
+  },
+  env: {
+    // This is needed for the integration auth to work
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL,
   },
 };

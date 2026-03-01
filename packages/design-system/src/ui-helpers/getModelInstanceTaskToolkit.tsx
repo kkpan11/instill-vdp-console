@@ -1,3 +1,4 @@
+import { cn } from "..";
 import { ComplicateIcons, Icons } from "../new-ui";
 
 export const getModelInstanceTaskToolkit = (task: string) => {
@@ -14,6 +15,7 @@ export const getModelInstanceTaskToolkit = (task: string) => {
         },
         label: "Classification",
       };
+
     case "TASK_DETECTION":
       return {
         getIcon: (className?: string) => {
@@ -79,7 +81,7 @@ export const getModelInstanceTaskToolkit = (task: string) => {
         label: "Semantic Segmentation",
       };
 
-    case "TASK_TEXT_GENERATION":
+    case "TASK_COMPLETION":
       return {
         getIcon: (className?: string) => {
           return (
@@ -89,9 +91,10 @@ export const getModelInstanceTaskToolkit = (task: string) => {
             />
           );
         },
-        label: "Text Generation",
+        label: "Text Completion",
       };
-    case "TASK_TEXT_EMBEDDINGS":
+
+    case "TASK_EMBEDDING":
       return {
         getIcon: (className?: string) => {
           return (
@@ -102,7 +105,7 @@ export const getModelInstanceTaskToolkit = (task: string) => {
             />
           );
         },
-        label: "Text Embeddings",
+        label: "Embedding",
       };
 
     case "TASK_TEXT_TO_IMAGE":
@@ -118,7 +121,7 @@ export const getModelInstanceTaskToolkit = (task: string) => {
         label: "Text To Image",
       };
 
-    case "TASK_IMAGE_TO_IMAGE":
+    /* case "TASK_IMAGE_TO_IMAGE":
       return {
         getIcon: (className?: string) => {
           return (
@@ -142,16 +145,17 @@ export const getModelInstanceTaskToolkit = (task: string) => {
           );
         },
         label: "Image To Text",
-      };
-    case "TASK_SPEECH_RECOGNITION":
+      }; */
+
+    /* case "TASK_SPEECH_RECOGNITION":
       return {
         getIcon: (className?: string) => {
           return <Icons.SpeechRecognition className={className ?? "h-4 w-4"} />;
         },
         label: "Speech Recognition",
-      };
+      }; */
 
-    case "TASK_VISUAL_QUESTION_ANSWERING":
+    /* case "TASK_VISUAL_QUESTION_ANSWERING":
       return {
         getIcon: (className?: string) => {
           return (
@@ -159,16 +163,29 @@ export const getModelInstanceTaskToolkit = (task: string) => {
           );
         },
         label: "Visual Question Answering",
-      };
+      }; */
 
-    case "TASK_TEXT_GENERATION_CHAT":
+    case "TASK_CHAT":
       return {
         getIcon: (className?: string) => {
           return (
             <Icons.TextGenerationChat className={className ?? "h-4 w-4"} />
           );
         },
-        label: "Text Generation Chat",
+        label: "Chat",
+      };
+
+    case "TASK_CUSTOM":
+      return {
+        getIcon: (className?: string) => {
+          return (
+            <ComplicateIcons.TaskCustom
+              className={cn("h-4 w-4", className)}
+              pathColor="stroke-semantic-fg-primary"
+            />
+          );
+        },
+        label: "Custom",
       };
 
     default:

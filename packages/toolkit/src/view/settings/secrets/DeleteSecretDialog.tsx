@@ -2,22 +2,16 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { isAxiosError } from "axios";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-import {
-  Button,
-  Dialog,
-  Form,
-  Input,
-  useToast,
-} from "@instill-ai/design-system";
+import { Button, Dialog, Form, Input } from "@instill-ai/design-system";
 
 import { LoadingSpin } from "../../../components";
 import {
-  getInstillApiErrorMessage,
   sendAmplitudeData,
+  toastInstillError,
+  toastInstillSuccess,
   useAmplitudeCtx,
   useDeleteNamespaceSecret,
   useInstillStore,
@@ -27,13 +21,17 @@ const DeleteSecretSchema = z.object({
   code: z.string().min(1, "Code is required"),
 });
 
-export const DeleteSecretDialog = ({ secretName }: { secretName: string }) => {
+export const DeleteSecretDialog = ({
+  namespaceId,
+  secretId,
+}: {
+  namespaceId: string;
+  secretId: string;
+}) => {
   const { amplitudeIsInit } = useAmplitudeCtx();
   const [open, setOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const accessToken = useInstillStore((store) => store.accessToken);
-
-  const displaySecretName = secretName.split("/").pop() || "";
 
   const form = useForm<z.infer<typeof DeleteSecretSchema>>({
     resolver: zodResolver(DeleteSecretSchema),
@@ -41,8 +39,6 @@ export const DeleteSecretDialog = ({ secretName }: { secretName: string }) => {
       code: "",
     },
   });
-
-  const { toast } = useToast();
 
   const deleteSecret = useDeleteNamespaceSecret();
 
@@ -52,7 +48,8 @@ export const DeleteSecretDialog = ({ secretName }: { secretName: string }) => {
 
     try {
       await deleteSecret.mutateAsync({
-        namespaceSecretName: secretName,
+        namespaceId,
+        secretId,
         accessToken,
       });
       setIsLoading(false);
@@ -63,19 +60,13 @@ export const DeleteSecretDialog = ({ secretName }: { secretName: string }) => {
 
       setOpen(false);
 
-      toast({
-        variant: "alert-success",
+      toastInstillSuccess({
         title: "Secret deleted successfully",
-        size: "small",
       });
     } catch (error) {
-      toast({
+      toastInstillError({
         title: "Something went wrong when deleting the secret",
-        variant: "alert-error",
-        size: "large",
-        description: isAxiosError(error)
-          ? getInstillApiErrorMessage(error)
-          : null,
+        error,
       });
     }
   };
@@ -129,7 +120,7 @@ export const DeleteSecretDialog = ({ secretName }: { secretName: string }) => {
                           <Form.Label className="!block" htmlFor={field.name}>
                             Please type
                             <span className="mx-1 select-all font-bold">
-                              {displaySecretName}
+                              {secretId}
                             </span>
                             to confirm.
                           </Form.Label>
@@ -164,9 +155,7 @@ export const DeleteSecretDialog = ({ secretName }: { secretName: string }) => {
                     className="w-full flex-1"
                     variant="primary"
                     size="lg"
-                    disabled={
-                      form.watch("code") === displaySecretName ? false : true
-                    }
+                    disabled={form.watch("code") === secretId ? false : true}
                   >
                     {isLoading ? <LoadingSpin /> : "Delete Secret"}
                   </Button>

@@ -15,6 +15,7 @@ import {
 import { useGuardPipelineBuilderUnsavedChangesNavigation } from "../../lib/hook";
 import { env } from "../../server";
 import { CETopbarDropdown } from "./CETopbarDropdown";
+import { ChatLink } from "./ChatLink";
 import { CloudTopbarDropdown } from "./CloudTopbarDropdown";
 import { ExploreLink } from "./ExploreLink";
 import { NamespaceSwitch } from "./NamespaceSwitch";
@@ -23,6 +24,7 @@ import { NavLinks } from "./NavLinks";
 const selector = (store: InstillStore) => ({
   accessToken: store.accessToken,
   enabledQuery: store.enabledQuery,
+  featureFlagChatEnabled: store.featureFlagChatEnabled,
 });
 
 export const AppTopbar = ({
@@ -40,7 +42,9 @@ export const AppTopbar = ({
 }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { accessToken, enabledQuery } = useInstillStore(useShallow(selector));
+  const { accessToken, enabledQuery, featureFlagChatEnabled } = useInstillStore(
+    useShallow(selector),
+  );
 
   const me = useAuthenticatedUser({
     enabled: enabledQuery,
@@ -50,7 +54,8 @@ export const AppTopbar = ({
   const navigate = useGuardPipelineBuilderUnsavedChangesNavigation();
 
   const isCloud = env("NEXT_PUBLIC_APP_ENV") === "CLOUD";
-  const isExploreRoute = pathname.startsWith("/hub");
+  const isExploreRoute =
+    pathname.startsWith("/featured") || pathname.startsWith("/explore");
 
   return (
     <div className="flex w-full flex-col">
@@ -109,6 +114,7 @@ export const AppTopbar = ({
           </div>
         </div>
         <div className="flex flex-1 flex-row justify-end">
+          {featureFlagChatEnabled ? <ChatLink /> : null}
           {topbarControllerChildren ? (
             topbarControllerChildren
           ) : isCloud ? (

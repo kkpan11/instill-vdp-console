@@ -8,6 +8,10 @@ import {
 
 export type TransformInstillFormTreeToInitialSelectedConditionOptions = {
   initialData?: GeneralRecord;
+  parentPath?: string;
+  parentIsObjectArray?: boolean;
+  parentIsFormCondition?: boolean;
+  objectArrayIndex?: number;
 };
 
 export function transformInstillFormTreeToInitialSelectedCondition(
@@ -15,15 +19,50 @@ export function transformInstillFormTreeToInitialSelectedCondition(
   options?: TransformInstillFormTreeToInitialSelectedConditionOptions,
 ) {
   let selectedConditionMap: SelectedConditionMap = {};
+  const parentPath = options?.parentPath ?? undefined;
+  const parentIsObjectArray = options?.parentIsObjectArray ?? false;
+  const parentIsFormCondition = options?.parentIsFormCondition ?? false;
+  const objectArrayIndex = options?.objectArrayIndex ?? undefined;
+
+  let modifiedPath = tree.path;
+
+  const parentPathArray = parentPath ? parentPath.split(".") : [];
+
+  // The reason we need to have parentPath and do this kind of adding up again even though
+  // we already did it when transform InstillJSONSchema to formTree, is due to we need to
+  // react to the index value of objectArray and the possibility that formCondition and formGroup
+  // will have the same path
+  if (parentIsObjectArray) {
+    if (parentPathArray && tree.fieldKey) {
+      const modifiedPathArray = objectArrayIndex
+        ? [...parentPathArray, objectArrayIndex]
+        : [...parentPathArray, "0"];
+      objectArrayIndex;
+      modifiedPath = modifiedPathArray.join(".");
+    }
+  } else {
+    if (parentPath && tree.fieldKey) {
+      if (parentIsFormCondition) {
+        const modifiedPathArray = [...parentPathArray];
+        modifiedPath = modifiedPathArray.join(".");
+      } else {
+        const modifiedPathArray = [...parentPathArray, tree.fieldKey];
+        modifiedPath = modifiedPathArray.join(".");
+      }
+    }
+  }
 
   if (tree._type === "formGroup") {
     for (const property of tree.properties) {
       selectedConditionMap = {
         ...selectedConditionMap,
-        ...transformInstillFormTreeToInitialSelectedCondition(
-          property,
-          options,
-        ),
+        ...transformInstillFormTreeToInitialSelectedCondition(property, {
+          ...options,
+          parentPath: modifiedPath ?? undefined,
+          parentIsFormCondition: false,
+          parentIsObjectArray: false,
+          objectArrayIndex: undefined,
+        }),
       };
     }
   }
@@ -31,10 +70,13 @@ export function transformInstillFormTreeToInitialSelectedCondition(
   if (tree._type === "objectArray") {
     selectedConditionMap = {
       ...selectedConditionMap,
-      ...transformInstillFormTreeToInitialSelectedCondition(
-        tree.properties,
-        options,
-      ),
+      ...transformInstillFormTreeToInitialSelectedCondition(tree.properties, {
+        ...options,
+        parentIsObjectArray: true,
+        parentIsFormCondition: false,
+        parentPath: modifiedPath ?? undefined,
+        objectArrayIndex: undefined,
+      }),
     };
   }
 
@@ -48,15 +90,22 @@ export function transformInstillFormTreeToInitialSelectedCondition(
       : null;
 
     if (constField && constField.path) {
+      const finalConstPath = modifiedPath
+        ? modifiedPath + "." + constField.fieldKey
+        : constField.fieldKey;
+
+      if (!finalConstPath) {
+        return selectedConditionMap;
+      }
+
       if (options?.initialData) {
         const selectedConditionKey = dot.getter(
           options.initialData,
-          constField.path,
+          finalConstPath,
         );
 
         if (selectedConditionKey) {
-          selectedConditionMap[constField.path] =
-            selectedConditionKey as string;
+          selectedConditionMap[finalConstPath] = selectedConditionKey as string;
 
           const selectedCondition =
             tree.conditions[selectedConditionKey as string];
@@ -66,7 +115,12 @@ export function transformInstillFormTreeToInitialSelectedCondition(
               ...selectedConditionMap,
               ...transformInstillFormTreeToInitialSelectedCondition(
                 selectedCondition,
-                options,
+                {
+                  ...options,
+                  parentIsFormCondition: true,
+                  parentIsObjectArray: false,
+                  parentPath: modifiedPath ?? undefined,
+                },
               ),
             };
           }
@@ -75,7 +129,7 @@ export function transformInstillFormTreeToInitialSelectedCondition(
         }
       }
 
-      selectedConditionMap[constField.path] = constField.const as string;
+      selectedConditionMap[finalConstPath] = constField.const as string;
 
       const selectedCondition = tree.conditions[constField.const as string];
 
@@ -84,7 +138,13 @@ export function transformInstillFormTreeToInitialSelectedCondition(
           ...selectedConditionMap,
           ...transformInstillFormTreeToInitialSelectedCondition(
             selectedCondition,
-            options,
+            {
+              ...options,
+              parentPath: modifiedPath ?? undefined,
+              parentIsFormCondition: true,
+              parentIsObjectArray: false,
+              objectArrayIndex: undefined,
+            },
           ),
         };
       }

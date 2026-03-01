@@ -20,11 +20,11 @@ import {
   RadioGroup,
   Separator,
   Textarea,
-  useToast,
 } from "@instill-ai/design-system";
 
 import { EntitySelector, LoadingSpin } from "../../../components";
-import { DataTestID, InstillErrors } from "../../../constant";
+import { DataTestID, resourceIdPrefix } from "../../../constant";
+import { defaultRawRecipe } from "../../../constant/pipeline";
 import {
   InstillStore,
   Nullable,
@@ -35,25 +35,15 @@ import {
   useInstillStore,
   useRouteInfo,
   useShallow,
+  useUserNamespaces,
 } from "../../../lib";
-import { useUserNamespaces } from "../../../lib/useUserNamespaces";
-import { env, validateInstillResourceID } from "../../../server";
+import { env, formatResourceId } from "../../../server";
 
-const CreatePipelineSchema = z
-  .object({
-    id: z.string(),
-    namespaceId: z.string(),
-    description: z.string().optional().nullable(),
-  })
-  .superRefine((state, ctx) => {
-    if (!validateInstillResourceID(state.id)) {
-      return ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: InstillErrors.ResourceIDInvalidError,
-        path: ["id"],
-      });
-    }
-  });
+const CreatePipelineSchema = z.object({
+  id: z.string(),
+  namespaceId: z.string(),
+  description: z.string().optional().nullable(),
+});
 
 type Permission = "public" | "private";
 
@@ -75,11 +65,12 @@ export const CreatePipelineDialog = ({ className }: { className?: string }) => {
     React.useState<Nullable<Permission>>("private");
   const router = useRouter();
 
-  const { toast } = useToast();
-
   const form = useForm<z.infer<typeof CreatePipelineSchema>>({
     resolver: zodResolver(CreatePipelineSchema),
     mode: "onChange",
+    defaultValues: {
+      id: "",
+    },
   });
 
   const {
@@ -90,11 +81,19 @@ export const CreatePipelineDialog = ({ className }: { className?: string }) => {
 
   const routeInfo = useRouteInfo();
 
-  const namespaces = useUserNamespaces();
+  const userNamespaces = useUserNamespaces();
+  const formattedPipelineId = formatResourceId(
+    form.watch("id"),
+    resourceIdPrefix.pipeline,
+  );
 
   const createPipeline = useCreateNamespacePipeline();
   async function onSubmit(data: z.infer<typeof CreatePipelineSchema>) {
-    if (!routeInfo.isSuccess) {
+    if (
+      !routeInfo.isSuccess ||
+      !formattedPipelineId ||
+      !userNamespaces.isSuccess
+    ) {
       return;
     }
 
@@ -121,32 +120,18 @@ export const CreatePipelineDialog = ({ className }: { className?: string }) => {
             shareCode: null,
           };
 
-    const targetNamespace = namespaces.find(
+    const targetNamespace = userNamespaces.data.find(
       (account) => account.id === data.namespaceId,
     );
 
     if (targetNamespace) {
       const payload: CreateNamespacePipelineRequest = {
-        namespaceName: targetNamespace.name,
-        id: data.id,
+        namespaceId: targetNamespace.id,
+        id: formattedPipelineId,
         description: data.description ?? undefined,
-        recipe: {
-          version: "v1beta",
-          variable: undefined,
-          output: undefined,
-          component: undefined,
-        },
+        rawRecipe: defaultRawRecipe,
         metadata: {
-          component: {
-            trigger: {
-              x: 0,
-              y: 0,
-            },
-            response: {
-              x: 0,
-              y: 0,
-            },
-          },
+          pipelineIsNew: true,
         },
         sharing,
       };
@@ -163,13 +148,14 @@ export const CreatePipelineDialog = ({ className }: { className?: string }) => {
 
         updateNavigationNamespaceAnchor(() => targetNamespace.id);
 
-        router.push(`/${data.namespaceId}/pipelines/${data.id}/editor`);
+        router.push(
+          `/${data.namespaceId}/pipelines/${formattedPipelineId}/editor`,
+        );
       } catch (error) {
         setCreating(false);
         toastInstillError({
           title: "Failed to create pipeline",
           error,
-          toast,
         });
       }
     } else {
@@ -177,7 +163,6 @@ export const CreatePipelineDialog = ({ className }: { className?: string }) => {
       toastInstillError({
         title: "Please choose a valid namespace to create your pipeline",
         error: null,
-        toast,
       });
     }
   }
@@ -211,6 +196,10 @@ export const CreatePipelineDialog = ({ className }: { className?: string }) => {
       <Dialog.Content
         data-testid={DataTestID.createPipelineDialog}
         className="!w-[600px] !p-0"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          form.setFocus("id");
+        }}
       >
         {routeInfo.isSuccess ? (
           <div className="flex flex-col">
@@ -245,7 +234,11 @@ export const CreatePipelineDialog = ({ className }: { className?: string }) => {
                                         form.trigger("id");
                                       }
                                     }}
-                                    data={namespaces}
+                                    data={
+                                      userNamespaces.isSuccess
+                                        ? userNamespaces.data
+                                        : []
+                                    }
                                   />
                                 </Form.Control>
                                 <Form.Message />
@@ -294,7 +287,7 @@ export const CreatePipelineDialog = ({ className }: { className?: string }) => {
                                 "NEXT_PUBLIC_CONSOLE_BASE_URL",
                               )}/${form.getValues(
                                 "namespaceId",
-                              )}/pipelines/${form.getValues("id")}`
+                              )}/pipelines/${formattedPipelineId}`
                             : null}
                         </span>
                       </p>
@@ -384,7 +377,11 @@ export const CreatePipelineDialog = ({ className }: { className?: string }) => {
 
             <div className="flex flex-row-reverse px-6 pb-6 pt-8">
               <Button
-                disabled={creating || namespaces.length === 0}
+                disabled={
+                  creating ||
+                  !userNamespaces.isSuccess ||
+                  userNamespaces.data.length === 0
+                }
                 form={formID}
                 variant="primary"
                 size="lg"

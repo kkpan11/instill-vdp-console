@@ -3,6 +3,8 @@
 import * as React from "react";
 import cn from "clsx";
 
+import { useCheckNoContent } from "../lib";
+
 export type ImageWithFallbackProps = {
   src: string;
   fallbackImg: React.ReactNode;
@@ -21,17 +23,29 @@ export const ImageWithFallback = ({
   className,
 }: ImageWithFallbackProps) => {
   const [error, setError] = React.useState(false);
+  const [noContent, setNoContent] = React.useState(false);
   const currentImageSrc = React.useRef<string>(src);
+
+  const isNoContent = useCheckNoContent(src);
 
   React.useEffect(() => {
     if (currentImageSrc.current !== src) {
       currentImageSrc.current = src;
-
       setError(false);
-    }
-  }, [src]);
+      setNoContent(false);
 
-  return error ? (
+      // In case like avatar image, we need to check if the image is empty
+      // by fetching the image with GET method
+      if (src) {
+        (async () => {
+          const noContent = await isNoContent();
+          if (noContent) setNoContent(true);
+        })();
+      }
+    }
+  }, [src, isNoContent]);
+
+  return !src || error ? (
     fallbackImg
   ) : (
     <img
@@ -41,7 +55,7 @@ export const ImageWithFallback = ({
       alt={alt}
       onError={() => {
         setError(true);
-        console.error(error);
+        if (src && !noContent) console.error(error);
       }}
       className={cn("shrink-0 grow-0", className)}
     />

@@ -1,3 +1,9 @@
+"use client";
+
+import type { Model, ModelState, Nullable } from "instill-sdk";
+import * as React from "react";
+import { useRouter } from "next/navigation";
+
 import {
   ModelApi,
   ModelPlayground,
@@ -5,15 +11,17 @@ import {
   ModelVersions,
   NoVersionsPlaceholder,
 } from ".";
-import { LoadingSpin } from "../../../components";
-import { Model, ModelState, Nullable } from "../../../lib";
+import { PlaygroundSkeleton } from "../../../components";
+import { useRouteInfo } from "../../../lib";
 import { ModelTabNames } from "../../../server";
 import { ModelReadme } from "./ModelReadme";
+import { ModelRuns } from "./ModelRuns";
 
 export type ModelContentViewerProps = {
   selectedTab: ModelTabNames;
   model?: Model;
   onUpdate: () => void;
+  onRun: () => void;
   modelState: Nullable<ModelState>;
 };
 
@@ -21,14 +29,24 @@ export const ModelContentViewer = ({
   selectedTab,
   model,
   onUpdate,
+  onRun,
   modelState,
 }: ModelContentViewerProps) => {
+  const router = useRouter();
+  const routeInfo = useRouteInfo();
+
+  React.useEffect(() => {
+    if (model && selectedTab === "settings" && !model.permission.canEdit) {
+      const playgroundPath = `/${routeInfo.data?.namespaceId}/models/${model.id}/playground`;
+      router.push(playgroundPath);
+    }
+  }, [selectedTab, model, routeInfo.data?.namespaceId, router]);
+
   let content = null;
 
   switch (selectedTab) {
     case "api": {
       content = <ModelApi model={model} />;
-
       break;
     }
     case "versions": {
@@ -37,12 +55,13 @@ export const ModelContentViewer = ({
       ) : (
         <NoVersionsPlaceholder />
       );
-
       break;
     }
     case "settings": {
       if (model?.permission.canEdit) {
         content = <ModelSettingsEditForm model={model} onUpdate={onUpdate} />;
+      } else {
+        content = null;
       }
 
       break;
@@ -52,10 +71,15 @@ export const ModelContentViewer = ({
 
       break;
     }
+    case "runs": {
+      content = <ModelRuns model={model} />;
+
+      break;
+    }
     case "playground":
     default: {
       content = modelState ? (
-        <ModelPlayground model={model} modelState={modelState} />
+        <ModelPlayground model={model} modelState={modelState} onRun={onRun} />
       ) : (
         <NoVersionsPlaceholder />
       );
@@ -64,11 +88,7 @@ export const ModelContentViewer = ({
 
   return (
     <div className="w-full pt-8">
-      {model ? (
-        content
-      ) : (
-        <LoadingSpin className="m-none !text-semantic-fg-secondary" />
-      )}
+      {model ? content : <PlaygroundSkeleton />}
     </div>
   );
 };

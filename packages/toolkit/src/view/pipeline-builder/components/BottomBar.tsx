@@ -1,11 +1,17 @@
 "use client";
 
 import * as React from "react";
-import cn from "clsx";
+import { InstillNameInterpreter } from "instill-sdk";
 import { Edge, Node } from "reactflow";
 import { useShallow } from "zustand/react/shallow";
 
-import { Button, Icons, Popover, ScrollArea } from "@instill-ai/design-system";
+import {
+  Button,
+  cn,
+  Icons,
+  Popover,
+  ScrollArea,
+} from "@instill-ai/design-system";
 
 import {
   InstillStore,
@@ -13,13 +19,13 @@ import {
   useInstillStore,
   useNamespacePipeline,
   useRouteInfo,
+  useSortedReleases,
 } from "../../../lib";
 import { getHumanReadableStringFromTime } from "../../../server";
 import {
   checkIsValidPosition,
   composeEdgesFromNodes,
   createGraphLayout,
-  useSortedReleases,
 } from "../lib";
 import { createNodesFromPipelineRecipe } from "../lib/createNodesFromPipelineRecipe";
 import { NodeData } from "../type";
@@ -52,18 +58,28 @@ export const BottomBar = () => {
   } = useInstillStore(useShallow(selector));
 
   const sortedReleases = useSortedReleases({
-    pipelineName,
+    namespaceId: pipelineName
+      ? InstillNameInterpreter.pipeline(pipelineName).namespaceId
+      : null,
+    pipelineId: pipelineName
+      ? InstillNameInterpreter.pipeline(pipelineName).resourceId
+      : null,
     accessToken,
-    enabledQuery: pipelineIsNew ? false : enabledQuery,
+    enabledQuery: pipelineIsNew ? false : enabledQuery && !!pipelineName,
+    shareCode: null,
+    view: "VIEW_FULL",
   });
 
   const routeInfo = useRouteInfo();
 
   const pipeline = useNamespacePipeline({
-    namespacePipelineName: routeInfo.data.pipelineName,
-    enabled: enabledQuery && routeInfo.isSuccess && !pipelineIsNew,
+    namespaceId: routeInfo.data.namespaceId,
+    pipelineId: routeInfo.data.resourceId,
+    enabled:
+      enabledQuery && routeInfo.isSuccess && !!pipelineName && !pipelineIsNew,
     accessToken,
-    retry: false,
+    view: "VIEW_FULL",
+    shareCode: null,
   });
 
   return (
@@ -98,7 +114,7 @@ export const BottomBar = () => {
                       id="latest"
                       currentVersion={currentVersion}
                       onClick={() => {
-                        if (!pipeline.isSuccess) {
+                        if (!pipeline.isSuccess || !pipeline.data.recipe) {
                           return;
                         }
 

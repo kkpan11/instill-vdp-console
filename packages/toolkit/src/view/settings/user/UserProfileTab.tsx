@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { AuthenticatedUser } from "instill-sdk";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -11,18 +13,22 @@ import {
   Input,
   Switch,
   Textarea,
-  useToast,
 } from "@instill-ai/design-system";
 
 import { Setting } from "..";
-import { LoadingSpin, UploadImageFieldWithCrop } from "../../../components";
 import {
-  AuthenticatedUser,
-  GeneralAppPageProp,
+  NamespaceAvatarWithFallback,
+  UploadImageFieldWithCrop,
+} from "../../../components";
+import {
+  InstillStore,
   sendAmplitudeData,
   toastInstillError,
+  toastInstillSuccess,
   useAmplitudeCtx,
   useAuthenticatedUser,
+  useInstillStore,
+  useShallow,
   useUpdateAuthenticatedUser,
 } from "../../../lib";
 import { FormLabel } from "../FormLabel";
@@ -49,17 +55,20 @@ export const UserProfileTabSchema = z.object({
     .optional(),
 });
 
-export type UserProfileTabProps = GeneralAppPageProp;
+const selector = (store: InstillStore) => ({
+  accessToken: store.accessToken,
+  enabledQuery: store.enabledQuery,
+});
 
-export const UserProfileTab = (props: UserProfileTabProps) => {
+export const UserProfileTab = () => {
   const { amplitudeIsInit } = useAmplitudeCtx();
-  const { accessToken, enableQuery, router } = props;
+  const router = useRouter();
 
-  const { toast } = useToast();
+  const { accessToken, enabledQuery } = useInstillStore(useShallow(selector));
 
   const me = useAuthenticatedUser({
     accessToken,
-    enabled: enableQuery,
+    enabled: enabledQuery,
   });
 
   const form = useForm<z.infer<typeof UserProfileTabSchema>>({
@@ -97,16 +106,14 @@ export const UserProfileTab = (props: UserProfileTabProps) => {
       }
 
       form.reset(payload);
-      toast({
+
+      toastInstillSuccess({
         title: "Profile updated successfully",
-        variant: "alert-success",
-        size: "small",
       });
     } catch (error) {
       toastInstillError({
         title: "Something went wrong when updating your profile.",
         error,
-        toast,
       });
     }
   }
@@ -223,7 +230,7 @@ export const UserProfileTab = (props: UserProfileTabProps) => {
                       <div className="flex flex-row justify-between">
                         <Form.Label
                           className="product-body-text-3-semibold"
-                          id="user-proifle-bio"
+                          id="user-profile-bio"
                         >
                           Bio
                         </Form.Label>
@@ -254,6 +261,14 @@ export const UserProfileTab = (props: UserProfileTabProps) => {
             />
             <Setting.TabSectionContent className="gap-y-4">
               <UploadImageFieldWithCrop
+                placeholder={
+                  <NamespaceAvatarWithFallback.Fallback
+                    namespaceId={me.data?.id ?? ""}
+                    displayName={me.data?.profile?.displayName ?? null}
+                    className="h-40 w-40"
+                    textClassName="!font-sans !text-[64px] !font-semibold"
+                  />
+                }
                 fieldName="profile.avatar"
                 form={form}
                 title="Upload your image"
@@ -357,12 +372,15 @@ export const UserProfileTab = (props: UserProfileTabProps) => {
           </Setting.TabSectionRoot>
           <Setting.TabSectionSeparator />
           <div className="flex flex-row-reverse">
-            <Button type="submit" size="lg" variant="primary">
-              {updateAuthenticatedUser.isPending ? (
-                <LoadingSpin className="!h-4 !w-4" />
-              ) : (
-                "Save changes"
-              )}
+            <Button
+              type="submit"
+              size="lg"
+              variant="primary"
+              disabled={
+                updateAuthenticatedUser.isPending || !form.formState.isDirty
+              }
+            >
+              Save changes
             </Button>
           </div>
         </form>

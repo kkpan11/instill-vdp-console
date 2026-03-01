@@ -11,8 +11,8 @@ import {
   useInstillStore,
   useRouteInfo,
   useShallow,
+  useSortedReleases,
 } from "../../../../lib";
-import { useSortedReleases } from "../../lib";
 import { UseReleasePipelineFormReturn } from "./ReleaseMenu";
 
 const selector = (store: InstillStore) => ({
@@ -34,9 +34,12 @@ export const SemverSelect = ({
   const routeInfo = useRouteInfo();
 
   const releases = useSortedReleases({
-    pipelineName: routeInfo.data.pipelineName,
+    namespaceId: routeInfo.data.namespaceId,
+    pipelineId: routeInfo.data.resourceId,
     enabledQuery: enabledQuery && routeInfo.isSuccess,
     accessToken,
+    shareCode: null,
+    view: "VIEW_FULL",
   });
 
   React.useEffect(() => {

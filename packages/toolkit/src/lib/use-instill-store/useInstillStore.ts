@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { devtools, subscribeWithSelector } from "zustand/middleware";
 
+import { createEditorSlice } from "./editorSlice";
+import { createFeatureFlagSlice } from "./featureFlagSlice";
 import { createGeneralSlice } from "./generalSlice";
 import { createPipelineBuilderSlice } from "./pipelineBuilderSlice";
 import { createRecentlyUsedSlice } from "./recentlyUsedSlice";
@@ -14,6 +16,8 @@ export const useInstillStore = create<InstillStore>()(
       ...createPipelineBuilderSlice(...a),
       ...createGeneralSlice(...a),
       ...createRecentlyUsedSlice(...a),
+      ...createEditorSlice(...a),
+      ...createFeatureFlagSlice(...a),
     })),
   ),
 );

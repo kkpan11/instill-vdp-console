@@ -69,7 +69,7 @@ export const VideosField = ({
                           className={
                             mode === "build"
                               ? "h-[55px] object-cover"
-                              : "h-[140px] object-contain"
+                              : "h-[140px] object-cover"
                           }
                         />
                       ) : (
@@ -79,7 +79,7 @@ export const VideosField = ({
                             "w-full bg-semantic-bg-secondary",
                             mode === "build"
                               ? "h-[55px] object-cover"
-                              : "h-[140px] object-contain",
+                              : "h-[140px] object-cover",
                           )}
                         />
                       );
@@ -91,7 +91,7 @@ export const VideosField = ({
                         "w-full",
                         mode === "build"
                           ? "h-[55px] bg-semantic-bg-secondary object-cover"
-                          : "h-[140px] object-contain",
+                          : "h-[140px] object-cover",
                       )}
                     />
                   ))}
@@ -114,7 +114,6 @@ export const VideosField = ({
                         binaries.push(binary);
                       }
                       field.onChange(binaries);
-                      setVideoFiles((prev) => [...prev, ...files]);
                     }
                   }}
                   disabled={disabled}

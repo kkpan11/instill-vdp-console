@@ -21,11 +21,10 @@ import {
   useAuthenticatedUser,
   useGuardPipelineBuilderUnsavedChangesNavigation,
   useInstillStore,
+  useNamespaceModel,
   useNamespacePipeline,
-  useNamespacesRemainingCredit,
   useRouteInfo,
   useShallow,
-  useUserModel,
 } from "../../lib";
 import { useUserNamespaces } from "../../lib/useUserNamespaces";
 import { env } from "../../server";
@@ -56,18 +55,8 @@ export const NamespaceSwitch = () => {
   const [switchIsOpen, setSwitchIsOpen] = React.useState(false);
   const navigate = useGuardPipelineBuilderUnsavedChangesNavigation();
 
-  const namespaces = useUserNamespaces();
+  const userNamespaces = useUserNamespaces();
   const pathname = usePathname();
-
-  const namespaceNames = React.useMemo(() => {
-    return namespaces.map((e) => e.name);
-  }, [namespaces]);
-
-  const namespacesRemainingCredit = useNamespacesRemainingCredit({
-    namespaceNames,
-    accessToken,
-    enabled: enabledQuery,
-  });
 
   const routeInfo = useRouteInfo();
 
@@ -77,50 +66,55 @@ export const NamespaceSwitch = () => {
   });
 
   const pipeline = useNamespacePipeline({
-    namespacePipelineName: routeInfo.isSuccess
-      ? routeInfo.data.pipelineName
-      : null,
+    namespaceId: routeInfo.data.namespaceId,
+    pipelineId: routeInfo.data.resourceId,
     accessToken,
-    enabled: enabledQuery && pathnameEvaluator.isPipelineOverviewPage(pathname),
+    enabled:
+      enabledQuery &&
+      routeInfo.isSuccess &&
+      pathnameEvaluator.isPipelineOverviewPage(pathname),
+    view: "VIEW_FULL",
+    shareCode: null,
   });
 
-  const model = useUserModel({
-    modelName: routeInfo.isSuccess ? routeInfo.data.modelName : null,
+  const model = useNamespaceModel({
+    modelId: routeInfo.isSuccess ? routeInfo.data.resourceId : null,
+    namespaceId: routeInfo.isSuccess ? routeInfo.data.namespaceId : null,
     accessToken,
     enabled: enabledQuery && pathnameEvaluator.isModelPlaygroundPage(pathname),
+    view: "VIEW_FULL",
   });
 
   const namespacesWithRemainingCredit = React.useMemo(() => {
-    if (namespacesRemainingCredit.isSuccess) {
-      return namespaces.map((namespace) => {
-        return {
-          ...namespace,
-          remainingCredit:
-            namespacesRemainingCredit.data.find(
-              (e) => e.namespaceName === namespace.name,
-            )?.remainingCredit.total ?? 0,
-        };
-      });
+    if (!userNamespaces.isSuccess) {
+      return [];
     }
 
-    return [];
-  }, [
-    namespacesRemainingCredit.isSuccess,
-    namespacesRemainingCredit.data,
-    namespaces,
-  ]);
+    return userNamespaces.data.map((namespace) => {
+      return {
+        ...namespace,
+        remainingCredit: 0,
+      };
+    });
+  }, [userNamespaces.isSuccess, userNamespaces.data]);
 
   const selectedNamespace = React.useMemo(() => {
-    if (!navigationNamespaceAnchor) {
+    if (!navigationNamespaceAnchor || !userNamespaces.isSuccess) {
       return null;
     }
 
     return namespacesWithRemainingCredit.length === 0
-      ? (namespaces.find((e) => e.id === navigationNamespaceAnchor) ?? null)
+      ? (userNamespaces.data.find((e) => e.id === navigationNamespaceAnchor) ??
+          null)
       : (namespacesWithRemainingCredit.find(
           (e) => e.id === navigationNamespaceAnchor,
         ) ?? null);
-  }, [namespacesWithRemainingCredit, namespaces, navigationNamespaceAnchor]);
+  }, [
+    namespacesWithRemainingCredit,
+    userNamespaces.isSuccess,
+    userNamespaces.data,
+    navigationNamespaceAnchor,
+  ]);
 
   // This is to deal with user entering their own setting page, we should
   // switch the namespace to the user's namespace
@@ -151,36 +145,37 @@ export const NamespaceSwitch = () => {
       currentNamespaceType = routeInfo.data.namespaceType;
     }
 
-    if (!me.isSuccess) {
+    if (!me.isSuccess || !userNamespaces.isSuccess) {
       return;
     }
 
     if (env("NEXT_PUBLIC_APP_ENV") === "CLOUD") {
-      if (!namespacesRemainingCredit.isSuccess) {
-        return;
-      }
-
       let namespaceAnchor: Nullable<string> = navigationNamespaceAnchor;
 
       // If we don't have the namespace anchor, we will try to find the
       // namespace anchor based on the current namespace id and type
-
       if (!namespaceAnchor) {
         if (currentNamespaceId && currentNamespaceType) {
           if (
             currentNamespaceType === "NAMESPACE_USER" &&
-            namespaces.findIndex((e) => e.id === currentNamespaceId) !== -1
+            userNamespaces.data.findIndex(
+              (e) => e.id === currentNamespaceId,
+            ) !== -1
           ) {
             namespaceAnchor = currentNamespaceId;
           } else if (
             currentNamespaceType === "NAMESPACE_ORGANIZATION" &&
-            namespaces.findIndex((e) => e.id === currentNamespaceId) !== -1
+            userNamespaces.data.findIndex(
+              (e) => e.id === currentNamespaceId,
+            ) !== -1
           ) {
             namespaceAnchor = currentNamespaceId;
             // The user didn't have direct permission toward this resource
             // We will try to find the first namespace that the user has
           } else {
-            namespaceAnchor = namespaces[0] ? namespaces[0].id : null;
+            namespaceAnchor = userNamespaces.data[0]
+              ? userNamespaces.data[0].id
+              : null;
           }
         } else {
           namespaceAnchor = me.data.id;
@@ -197,16 +192,22 @@ export const NamespaceSwitch = () => {
         if (currentNamespaceId && currentNamespaceType) {
           if (
             currentNamespaceType === "NAMESPACE_USER" &&
-            namespaces.findIndex((e) => e.id === currentNamespaceId) !== -1
+            userNamespaces.data.findIndex(
+              (e) => e.id === currentNamespaceId,
+            ) !== -1
           ) {
             namespaceAnchor = currentNamespaceId;
           } else if (
             currentNamespaceType === "NAMESPACE_ORGANIZATION" &&
-            namespaces.findIndex((e) => e.id === currentNamespaceId) !== -1
+            userNamespaces.data.findIndex(
+              (e) => e.id === currentNamespaceId,
+            ) !== -1
           ) {
             namespaceAnchor = currentNamespaceId;
           } else {
-            namespaceAnchor = namespaces[0] ? namespaces[0].id : null;
+            namespaceAnchor = userNamespaces.data[0]
+              ? userNamespaces.data[0].id
+              : null;
           }
         } else {
           namespaceAnchor = me.data.id;
@@ -218,10 +219,10 @@ export const NamespaceSwitch = () => {
       }
     }
   }, [
-    namespaces,
+    userNamespaces.isSuccess,
+    userNamespaces.data,
     navigationNamespaceAnchor,
-    namespacesRemainingCredit.isSuccess,
-    namespacesRemainingCredit.data,
+
     routeInfo.isSuccess,
     routeInfo.data,
     me.isSuccess,
@@ -241,7 +242,9 @@ export const NamespaceSwitch = () => {
         updateNavigationNamespaceAnchor(() => value);
 
         const pathnameArray = pathname.split("/");
-        const targetNamespace = namespaces.find((e) => e.id === value);
+        const targetNamespace = userNamespaces.data?.find(
+          (e) => e.id === value,
+        );
 
         if (!routeInfo.isSuccess) {
           // When the user is in its personal setting page and then he switch to organization
@@ -340,10 +343,8 @@ export const NamespaceSwitch = () => {
       onOpenChange={(value) => {
         setSwitchIsOpen(value);
       }}
-      disabled={namespacesRemainingCredit.isSuccess ? false : true}
     >
       <Select.Trigger
-        icon={<React.Fragment />}
         className={cn(
           "!w-[136px] !border-none !p-1 hover:!bg-semantic-bg-secondary",
           switchIsOpen
@@ -355,13 +356,15 @@ export const NamespaceSwitch = () => {
           // We force the Select.Value to re-render when the selectedNamespace changes
           // to update the image of the Select.Value
           <Select.Value>
-            <div
-              key={selectedNamespace.id}
-              className="flex w-[128px] flex-row items-center justify-between gap-x-2"
-            >
+            <div className="flex w-[128px] flex-row items-center justify-between gap-x-2">
               <div className="flex w-full flex-row items-center gap-x-2">
                 <NamespaceAvatarWithFallback.Root
                   src={selectedNamespace.avatarUrl ?? null}
+                  refreshKey={
+                    me.isSuccess && selectedNamespace.id === me.data.id
+                      ? me.data.updateTime
+                      : undefined
+                  }
                   className="h-8 w-8"
                   fallback={
                     <NamespaceAvatarWithFallback.Fallback
@@ -371,7 +374,6 @@ export const NamespaceSwitch = () => {
                     />
                   }
                 />
-
                 <p className="line-clamp-1 break-all text-semantic-fg-primary product-body-text-3-medium">
                   {truncateDisplayName(selectedNamespace.id)}
                 </p>
@@ -402,6 +404,11 @@ export const NamespaceSwitch = () => {
                       <div className="flex flex-row items-center gap-x-3">
                         <NamespaceAvatarWithFallback.Root
                           src={namespace.avatarUrl ?? null}
+                          refreshKey={
+                            me.isSuccess && namespace.id === me.data.id
+                              ? me.data.updateTime
+                              : undefined
+                          }
                           className="h-10 w-10 rounded-full"
                           fallback={
                             <NamespaceAvatarWithFallback.Fallback

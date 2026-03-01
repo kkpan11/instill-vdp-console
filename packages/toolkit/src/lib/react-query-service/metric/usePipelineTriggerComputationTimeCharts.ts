@@ -1,22 +1,24 @@
+"use client";
+
+import type { Nullable } from "instill-sdk";
 import { useQuery } from "@tanstack/react-query";
 
 import { env } from "../../../server";
-import { Nullable } from "../../type";
-import { getInstillAPIClient } from "../../vdp-sdk";
+import { getInstillAPIClient } from "../../sdk-helper";
 
 export function usePipelineTriggerComputationTimeCharts({
   enabled,
   accessToken,
   filter,
-  retry,
+  requesterId,
 }: {
   enabled: boolean;
   accessToken: Nullable<string>;
   filter: Nullable<string>;
-  retry?: false | number;
+  requesterId?: string;
 }) {
   return useQuery({
-    queryKey: ["charts", filter],
+    queryKey: ["pipelineTriggerCharts", filter, requesterId],
     queryFn: async () => {
       if (!accessToken) {
         return Promise.reject(new Error("accessToken not provided"));
@@ -25,7 +27,7 @@ export function usePipelineTriggerComputationTimeCharts({
       const client = getInstillAPIClient({ accessToken });
 
       const triggers =
-        await client.core.metric.listPipelineTriggerComputationTimeCharts({
+        await client.mgmt.metric.listPipelineTriggerComputationTimeCharts({
           pageSize: env("NEXT_PUBLIC_QUERY_PAGE_SIZE"),
           filter: filter ?? undefined,
         });
@@ -33,6 +35,5 @@ export function usePipelineTriggerComputationTimeCharts({
       return Promise.resolve(triggers);
     },
     enabled,
-    retry: retry === false ? false : retry ? retry : 3,
   });
 }

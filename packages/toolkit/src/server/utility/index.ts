@@ -11,3 +11,6 @@ export * from "./chunk";
 export * from "./removeObjKey";
 export * from "./getModelTabTitle";
 export * from "./getPipelineTabTitle";
+export * from "./formatResourceId";
+export * from "./parseResourceId";
+export * from "./generateNextMetaBase";

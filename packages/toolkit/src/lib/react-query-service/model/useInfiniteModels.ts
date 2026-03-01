@@ -1,54 +1,47 @@
+"use client";
+
+import type { Nullable, ResourceView } from "instill-sdk";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
-import type { Nullable } from "../../type";
 import { env } from "../../../server";
-import { listModelsQuery, Visibility } from "../../vdp-sdk";
+import { getInstillModelAPIClient } from "../../sdk-helper";
+import { queryKeyStore } from "../queryKeyStore";
 
 export function useInfiniteModels({
   accessToken,
-  pageSize,
   enabledQuery,
-  retry,
   filter,
   visibility,
   orderBy,
-  disabledViewFull,
+  view,
 }: {
-  pageSize?: number;
   accessToken: Nullable<string>;
   enabledQuery: boolean;
-  retry?: false | number;
   filter: Nullable<string>;
-  visibility: Nullable<Visibility>;
+  visibility: Nullable<string>;
   orderBy: Nullable<string>;
-  disabledViewFull?: boolean;
+  view: Nullable<ResourceView>;
 }) {
-  const queryKey = ["models", "infinite"];
-
-  if (filter) {
-    queryKey.push(filter);
-  }
-
-  if (visibility) {
-    queryKey.push(visibility);
-  }
-
-  if (orderBy) {
-    queryKey.push(orderBy);
-  }
-
   return useInfiniteQuery({
-    queryKey,
+    queryKey: queryKeyStore.model.getUseInfiniteModelsQueryKey({
+      filter,
+      visibility,
+      orderBy,
+      view,
+    }),
     queryFn: async ({ pageParam }) => {
-      const models = await listModelsQuery({
-        pageSize: pageSize ?? env("NEXT_PUBLIC_QUERY_PAGE_SIZE") ?? null,
-        nextPageToken: pageParam ?? null,
-        accessToken,
-        filter,
-        visibility,
+      const client = getInstillModelAPIClient({
+        accessToken: accessToken ?? undefined,
+      });
+
+      const models = await client.model.listModels({
+        pageSize: env("NEXT_PUBLIC_QUERY_PAGE_SIZE") ?? undefined,
+        view: view ?? undefined,
+        pageToken: pageParam ?? undefined,
         enablePagination: true,
-        orderBy,
-        disabledViewFull,
+        filter: filter ?? undefined,
+        visibility: visibility ?? undefined,
+        orderBy: orderBy ?? undefined,
       });
 
       return Promise.resolve(models);
@@ -62,6 +55,5 @@ export function useInfiniteModels({
       return lastPage.nextPageToken;
     },
     enabled: enabledQuery,
-    retry: retry === false ? false : retry ? retry : 3,
   });
 }

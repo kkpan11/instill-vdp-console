@@ -1,8 +1,13 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { UpdateAuthenticatedUserRequest } from "instill-sdk";
+"use client";
 
-import type { Nullable } from "../../type";
-import { AuthenticatedUser, getInstillAPIClient } from "../../vdp-sdk";
+import type {
+  AuthenticatedUser,
+  Nullable,
+  UpdateAuthenticatedUserRequest,
+} from "instill-sdk";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+import { getInstillAPIClient } from "../../sdk-helper";
 
 export function useUpdateAuthenticatedUser() {
   const queryClient = useQueryClient();
@@ -20,7 +25,7 @@ export function useUpdateAuthenticatedUser() {
 
       const client = getInstillAPIClient({ accessToken });
 
-      const user = await client.core.user.updateAuthenticatedUser(payload);
+      const user = await client.mgmt.user.updateAuthenticatedUser(payload);
 
       return Promise.resolve(user);
     },

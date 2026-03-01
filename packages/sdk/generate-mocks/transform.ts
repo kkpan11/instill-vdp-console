@@ -12,17 +12,18 @@ import { GenerateOptions } from "./types";
 
 const MAX_STRING_LENGTH = 42;
 
-export interface ResponseMap {
+export type ResponseMap = {
   code: string;
   id: string;
   responses?: Record<string, OpenAPIV3.SchemaObject>;
-}
+};
 
-export interface Operation {
+export type Operation = {
   verb: string;
   path: string;
+  parameters: OpenAPIV3.ParameterObject[];
   response: ResponseMap[];
-}
+};
 
 export type OperationCollection = Operation[];
 
@@ -89,30 +90,84 @@ export function transformToHandlerCode(
         return "";
       }
 
+      // Get query parameters from the OpenAPI definition
+      const queryParams =
+        op.parameters
+          ?.filter((param) => param.in === "query")
+          .map((param) => param.name) ?? [];
+
       const identifier = getResIdentifierName(successResponse);
 
+      return `http.${op.verb}(\`\${baseURL}${op.path}\`, async ({ request }) => {
+          try {
+            const url = new URL(request.url);
+            const paramKeys = Array.from(url.searchParams.keys())
+
+            const unexpectedParams = [];
+            const missingParams = [];
+
+            for (const param of paramKeys) {
+              if (!${JSON.stringify(queryParams)}.includes(param)) {
+                unexpectedParams.push(param);
+              }
+            }
+
+            for (const param of ${JSON.stringify(queryParams)}) {
+              if (!paramKeys.includes(param)) {
+                missingParams.push(param);
+              }
+            }
+
+            const statusText = [];
+
+            if (unexpectedParams.length > 0) {
+              statusText.push(\`Unexpected query parameters: \${unexpectedParams.join(', ')}\`);
+            }
+
+            if (missingParams.length > 0) {
+              statusText.push(\`Missing query parameters: \${missingParams.join(', ')}\`);
+            }
+
+            if (statusText.length > 0) {
+              return new HttpResponse(null, {
+                status: 400,
+                statusText: statusText.join("; ")
+              });
+            }
+
+            return HttpResponse.json(await ${identifier}())
+          } catch(error){
+            console.error(error)
+            return new HttpResponse(null, {
+              status: 500,
+              statusText: "Internal Server Error"
+            });
+          }
+        }),\n`;
+
+      // The code below is for future reference
       // We have namespace path like /namespaces/*/pipelines/pid
       // For it we need to generate two route
       // - /users/*/pipelines/pid
       // - /organizations/*/pipelines/pid
 
-      const namespacesRegex = /namespaces/g;
+      // const namespacesRegex = /namespaces/g;
 
-      if (namespacesRegex.test(op.path)) {
-        const orgPath = op.path.replace(namespacesRegex, "organizations");
-        const userPath = op.path.replace(namespacesRegex, "users");
+      // if (namespacesRegex.test(op.path)) {
+      //   const orgPath = op.path.replace(namespacesRegex, "organizations");
+      //   const userPath = op.path.replace(namespacesRegex, "users");
 
-        return `http.${op.verb}(\`\${baseURL}${orgPath}\`, async () => {
-          return HttpResponse.json(await ${identifier}())
-        }),\n
-        http.${op.verb}(\`\${baseURL}${userPath}\`, async () => {
-          return HttpResponse.json(await ${identifier}())
-        }),\n`;
-      } else {
-        return `http.${op.verb}(\`\${baseURL}${op.path}\`, async () => {
-          return HttpResponse.json(await ${identifier}())
-        }),\n`;
-      }
+      //   return `http.${op.verb}(\`\${baseURL}${orgPath}\`, async () => {
+      //     return HttpResponse.json(await ${identifier}())
+      //   }),\n
+      //   http.${op.verb}(\`\${baseURL}${userPath}\`, async () => {
+      //     return HttpResponse.json(await ${identifier}())
+      //   }),\n`;
+      // } else {
+      //   return `http.${op.verb}(\`\${baseURL}${op.path}\`, async () => {
+      //     return HttpResponse.json(await ${identifier}())
+      //   }),\n`;
+      // }
     })
     .join("  ")
     .trimEnd();

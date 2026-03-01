@@ -1,5 +1,6 @@
 "use client";
 
+import type { PipelineTriggerTableRecord } from "instill-sdk";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
@@ -7,11 +8,10 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Button, DataTable } from "@instill-ai/design-system";
 
 import { SortIcon, TableError } from "../../components";
-import { TriggeredPipeline } from "../../lib";
 import { PipelineTablePlaceholder } from "../pipeline";
 
 export type DashboardPipelinesTableProps = {
-  pipelineTriggerCounts: TriggeredPipeline[];
+  pipelineTriggerCounts: PipelineTriggerTableRecord[];
   isError: boolean;
   isLoading: boolean;
 };
@@ -22,7 +22,7 @@ export const DashboardPipelinesTable = (
   const { entity, days } = useParams();
   const { pipelineTriggerCounts, isError, isLoading } = props;
 
-  const columns: ColumnDef<TriggeredPipeline>[] = [
+  const columns: ColumnDef<PipelineTriggerTableRecord>[] = [
     {
       accessorKey: "pipelineId",
       header: () => <div className="min-w-[450px] text-left">Pipeline Id</div>,
@@ -59,7 +59,7 @@ export const DashboardPipelinesTable = (
                 column.toggleSorting(column.getIsSorted() === "asc")
               }
             >
-              <span className="min-w-[130px]">Completed Triggers</span>
+              <span className="min-w-[130px]">Completed Runs</span>
               <SortIcon type={column.getIsSorted()} />
             </Button>
           </div>
@@ -83,7 +83,7 @@ export const DashboardPipelinesTable = (
             size="sm"
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
-            <span className="min-w-[110px]">Errored Triggers</span>
+            <span className="min-w-[110px]">Errored Runs</span>
             <SortIcon type={column.getIsSorted()} />
           </Button>
         </div>
@@ -109,7 +109,7 @@ export const DashboardPipelinesTable = (
         isLoading={isLoading}
         loadingRows={6}
         primaryText="Pipelines"
-        secondaryText="Select pipelines from the table below to view the number of pipeline triggers"
+        secondaryText="Select pipelines from the table below to view the number of pipeline runs"
       >
         <TableError marginBottom="!border-0" />
       </DataTable>
@@ -127,7 +127,7 @@ export const DashboardPipelinesTable = (
         isLoading={isLoading}
         loadingRows={6}
         primaryText="Pipelines"
-        secondaryText="Select pipelines from the table below to view the number of pipeline triggers"
+        secondaryText="Select pipelines from the table below to view the number of pipeline runs"
       >
         <PipelineTablePlaceholder
           enableCreateButton={false}
@@ -147,7 +147,7 @@ export const DashboardPipelinesTable = (
       isLoading={isLoading}
       loadingRows={6}
       primaryText="Pipelines"
-      secondaryText="Select pipelines from the table below to view the number of pipeline triggers"
+      secondaryText="Select pipelines from the table below to view the number of pipeline runs"
     />
   );
 };

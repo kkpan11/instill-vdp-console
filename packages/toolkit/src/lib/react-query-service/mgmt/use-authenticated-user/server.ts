@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 
+import { getInstillAPIClient } from "../../../sdk-helper";
 import { Nullable } from "../../../type";
-import { getInstillAPIClient } from "../../../vdp-sdk";
 
 export async function fetchAuthenticatedUser({
   accessToken,
@@ -15,7 +15,7 @@ export async function fetchAuthenticatedUser({
   try {
     const client = getInstillAPIClient({ accessToken });
 
-    const user = await client.core.user.getAuthenticatedUser();
+    const user = await client.mgmt.user.getAuthenticatedUser();
 
     return Promise.resolve(user);
   } catch (error) {

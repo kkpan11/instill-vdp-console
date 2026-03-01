@@ -1,8 +1,8 @@
 "use client";
 
-import { Pipeline } from "instill-sdk";
+import { InstillNameInterpreter, Pipeline } from "instill-sdk";
 
-import { cn, useToast } from "@instill-ai/design-system";
+import { cn } from "@instill-ai/design-system";
 
 import type { InstillStore } from "../../../lib";
 import { CardPipeline, CardPipelineSkeleton } from "../../../components";
@@ -30,7 +30,6 @@ export const PipelinesList = (props: PipelinesListProps) => {
   const { pipelines, onPipelineDelete, isLoading, isSearchActive } = props;
   const { accessToken } = useInstillStore(useShallow(selector));
   const { amplitudeIsInit } = useAmplitudeCtx();
-  const { toast } = useToast();
 
   const isEmpty = !isLoading && !pipelines?.length;
 
@@ -42,9 +41,12 @@ export const PipelinesList = (props: PipelinesListProps) => {
   const handleDeletePipeline = async (pipeline: Pipeline) => {
     if (!pipeline) return;
 
+    const instillName = InstillNameInterpreter.pipeline(pipeline.name);
+
     try {
       await deletePipeline.mutateAsync({
-        namespacePipelineName: pipeline.name,
+        namespaceId: instillName.namespaceId,
+        pipelineId: pipeline.id,
         accessToken: accessToken ? accessToken : null,
       });
 
@@ -59,7 +61,6 @@ export const PipelinesList = (props: PipelinesListProps) => {
       toastInstillError({
         title: "Something went wrong while deleting the pipeline",
         error,
-        toast,
       });
     }
   };

@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
@@ -13,11 +17,10 @@ jobs:
       TAG_NAME: ${{ steps.release.outputs.tag_name }}
       SHA: ${{ steps.release.outputs.sha }}
     steps:
-      - uses: google-github-actions/release-please-action@v3
+      - uses: googleapis/release-please-action@v4
         id: release
         with:
           token: ${{ secrets.botGitHubToken }}
-          command: manifest
           config-file: release-please/config.json
           manifest-file: release-please/manifest.json
 
@@ -52,16 +55,17 @@ jobs:
 
       - name: Setup Node.js 18.x
         if: ${{ steps.release.outputs.releases_created }}
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
+        uses: actions/setup-node@v4
+        with:          
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v2.0.1
         if: ${{ steps.release.outputs.releases_created }}
         name: Install pnpm
         id: pnpm-install
         with:
-          version: 9
+          version: 10.30.3
           run_install: false
 
       - name: Get pnpm store directory
@@ -79,13 +83,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Setup npmrc
-        if: ${{ steps.release.outputs.releases_created }}
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPMTOKEN }}" > .npmrc
-
       - name: Install dependencies
         if: ${{ steps.release.outputs.releases_created }}
         run: rm -rf node_modules && pnpm i --frozen-lockfile
+
+      - name: Download component icons
+        if: ${{ steps.release.outputs.releases_created }}
+        run: GITHUB_TOKEN=${{ secrets.botGitHubToken }} pnpm download-component-icons
 
       - name: Build packages
         if: ${{ steps.release.outputs.releases_created }}

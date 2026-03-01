@@ -1,19 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
-
-import { useToast } from "@instill-ai/design-system";
+import * as React from "react";
+import {
+  InstillNameInterpreter,
+  Model,
+  UpdateNamespaceModelRequest,
+} from "instill-sdk";
 
 import { ReadmeEditor } from "../../../components";
 import {
   InstillStore,
-  Model,
   sendAmplitudeData,
-  UpdateUserModelPayload,
+  toastInstillSuccess,
   useAmplitudeCtx,
   useInstillStore,
   useShallow,
-  useUpdateUserModel,
+  useUpdateNamespaceModel,
 } from "../../../lib";
 
 const selector = (store: InstillStore) => ({
@@ -28,24 +30,30 @@ export type ModelReadmeProps = {
 export const ModelReadme = ({ model, onUpdate }: ModelReadmeProps) => {
   const { amplitudeIsInit } = useAmplitudeCtx();
   const { accessToken } = useInstillStore(useShallow(selector));
-  const { toast } = useToast();
-  const canEdit = useMemo(() => {
+  const canEdit = React.useMemo(() => {
     return !!accessToken && !!model?.permission.canEdit;
   }, [model, accessToken]);
 
-  const updateUserModel = useUpdateUserModel();
+  const updateNamespaceModel = useUpdateNamespaceModel();
 
   const onUpdateModelReadme = async (readme: string) => {
     if (!accessToken || !model) {
       return;
     }
 
-    const payload: UpdateUserModelPayload = {
+    const { namespaceId } = InstillNameInterpreter.model(model.name);
+
+    if (!namespaceId) {
+      return;
+    }
+
+    const payload: UpdateNamespaceModelRequest = {
+      namespaceId,
+      modelId: model.id,
       readme,
     };
 
-    await updateUserModel.mutateAsync({
-      name: model.name,
+    await updateNamespaceModel.mutateAsync({
       payload,
       accessToken,
     });
@@ -54,10 +62,8 @@ export const ModelReadme = ({ model, onUpdate }: ModelReadmeProps) => {
       sendAmplitudeData("update_model_readme");
     }
 
-    toast({
-      size: "small",
+    toastInstillSuccess({
       title: "Model readme updated successfully",
-      variant: "alert-success",
     });
 
     onUpdate();
@@ -75,7 +81,7 @@ export const ModelReadme = ({ model, onUpdate }: ModelReadmeProps) => {
           ? `You don't have a README. You can start creating one by clicking **Edit** icon in the top right corner.`
           : "There is no README for this model."
       }
-      className="flex-1 flex flex-col [&>.markdown-body]:flex-1"
+      className="flex-1 flex flex-col"
     />
   );
 };

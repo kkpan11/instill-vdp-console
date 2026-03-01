@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { isAxiosError } from "axios";
-import { CreateNamespaceSecretRequest } from "instill-sdk";
+import { CreateNamespaceSecretRequest, InstillError } from "instill-sdk";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -13,16 +12,16 @@ import {
   Form,
   Input,
   Textarea,
-  useToast,
 } from "@instill-ai/design-system";
 
 import { LoadingSpin } from "../../../components";
 import { InstillErrors } from "../../../constant";
 import {
-  getInstillApiErrorMessage,
   InstillStore,
   Nullable,
   sendAmplitudeData,
+  toastInstillError,
+  toastInstillSuccess,
   useAmplitudeCtx,
   useAuthenticatedUser,
   useCreateNamespaceSecret,
@@ -58,7 +57,6 @@ export const CreateSecretDialog = () => {
   const [open, setOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const { accessToken, enabledQuery } = useInstillStore(useShallow(selector));
-  const { toast } = useToast();
   const routeInfo = useRouteInfo();
 
   const me = useAuthenticatedUser({
@@ -91,25 +89,25 @@ export const CreateSecretDialog = () => {
   ) => {
     if (!accessToken || !me.isSuccess) return;
 
-    let namespaceName: Nullable<string> = null;
+    let namespaceId: Nullable<string> = null;
 
     if (
       routeInfo.isSuccess &&
       routeInfo.data.namespaceType === "NAMESPACE_ORGANIZATION"
     ) {
-      namespaceName = routeInfo.data.namespaceName;
+      namespaceId = routeInfo.data.namespaceId;
     } else {
-      namespaceName = me.data.name;
+      namespaceId = me.data.id;
     }
 
-    if (!namespaceName) {
+    if (!namespaceId) {
       return;
     }
 
     setIsLoading(true);
 
     const payload: CreateNamespaceSecretRequest = {
-      namespaceName,
+      namespaceId,
       id: data.name,
       value: data.value,
       description: data.description ?? undefined,
@@ -129,16 +127,15 @@ export const CreateSecretDialog = () => {
 
       setOpen(false);
 
-      toast({
-        variant: "alert-success",
+      toastInstillSuccess({
         title: "Secret created successfully",
-        size: "small",
       });
     } catch (error) {
       setIsLoading(false);
-      if (!isAxiosError(error)) return;
-
-      if (error.response?.status === 409) {
+      if (
+        error instanceof InstillError &&
+        error.message === "Secret ID already exists"
+      ) {
         form.setError("name", {
           type: "manual",
           message: "Secret name already exists",
@@ -146,13 +143,9 @@ export const CreateSecretDialog = () => {
         return;
       }
 
-      toast({
+      toastInstillError({
         title: "Failed to create secret",
-        variant: "alert-error",
-        size: "large",
-        description: isAxiosError(error)
-          ? getInstillApiErrorMessage(error)
-          : null,
+        error,
       });
     }
   };

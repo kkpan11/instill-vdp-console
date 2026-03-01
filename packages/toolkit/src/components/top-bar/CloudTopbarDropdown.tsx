@@ -1,26 +1,23 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
 
 import {
-  Button,
   ComplicateIcons,
   DropdownMenu,
   Icons,
   Separator,
 } from "@instill-ai/design-system";
 
+import { DOCS_BASE_URL } from "../../constant";
 import {
   InstillStore,
   useAuthenticatedUser,
-  useAuthenticatedUserSubscription,
   useGuardPipelineBuilderUnsavedChangesNavigation,
   useInstillStore,
   useShallow,
 } from "../../lib";
 import { NamespaceAvatarWithFallback } from "../NamespaceAvatarWithFallback";
-import { RemainingCreditCTA } from "./RemainingCredit";
 import { TopbarDropdownGroup, TopbarDropdownItem } from "./TopbarDropdown";
 
 const selector = (store: InstillStore) => ({
@@ -35,37 +32,20 @@ export const CloudTopbarDropdown = () => {
     accessToken,
   });
 
-  const userSub = useAuthenticatedUserSubscription({
-    enabled: me.isSuccess && enabledQuery,
-    accessToken,
-  });
-
   const navigate = useGuardPipelineBuilderUnsavedChangesNavigation();
-
-  const subIsActive = React.useMemo(() => {
-    if (userSub.isSuccess && me.isSuccess) {
-      if (
-        userSub.data.detail?.status === "STATUS_ACTIVE" ||
-        userSub.data.detail?.status === "STATUS_TRIALING"
-      ) {
-        return true;
-      }
-    }
-
-    return false;
-  }, [userSub.isSuccess, userSub.data, me.isSuccess]);
 
   return me.isSuccess ? (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger className="!my-auto !h-10 !w-10">
         <NamespaceAvatarWithFallback.Root
           src={me.data.profile?.avatar ?? null}
-          className="my-auto h-8 w-8 cursor-pointer"
+          refreshKey={me.data.updateTime}
+          className="my-auto h-10 w-10 cursor-pointer"
           fallback={
             <NamespaceAvatarWithFallback.Fallback
               namespaceId={me.data.id}
               displayName={me.data.profile?.displayName ?? null}
-              className="h-8 w-8"
+              className="h-10 w-10"
             />
           }
         />
@@ -79,6 +59,7 @@ export const CloudTopbarDropdown = () => {
           <div className="mb-4 flex flex-row gap-x-2">
             <NamespaceAvatarWithFallback.Root
               src={me.data.profile?.avatar ?? null}
+              refreshKey={me.data.updateTime}
               className="my-auto h-10 w-10 cursor-pointer"
               fallback={
                 <NamespaceAvatarWithFallback.Fallback
@@ -97,7 +78,6 @@ export const CloudTopbarDropdown = () => {
               </p>
             </div>
           </div>
-          <RemainingCreditCTA ctaTargetHref="/subscribe" />
         </div>
         <Separator orientation="horizontal" />
         <TopbarDropdownGroup>
@@ -111,7 +91,7 @@ export const CloudTopbarDropdown = () => {
           </TopbarDropdownItem>
           <TopbarDropdownItem
             onClick={() => {
-              navigate("/settings/profile");
+              navigate("/core-settings/profile");
             }}
           >
             <Icons.Gear01 className="my-auto h-4 w-4 stroke-semantic-fg-disabled" />
@@ -122,7 +102,7 @@ export const CloudTopbarDropdown = () => {
         <TopbarDropdownGroup>
           <TopbarDropdownItem
             onClick={() => {
-              navigate("/settings/organizations");
+              navigate("/core-settings/organizations");
             }}
             asChild
           >
@@ -169,7 +149,7 @@ export const CloudTopbarDropdown = () => {
           </TopbarDropdownItem>
           <TopbarDropdownItem asChild>
             <a
-              href="https://www.instill.tech/docs"
+              href={DOCS_BASE_URL}
               className="flex gap-x-2"
               rel="noopener noreferrer"
               target="_blank"
@@ -202,26 +182,7 @@ export const CloudTopbarDropdown = () => {
             </Link>
           </TopbarDropdownItem>
         </TopbarDropdownGroup>
-        {!subIsActive ? (
-          <React.Fragment>
-            <Separator orientation="horizontal" />
-            <TopbarDropdownGroup>
-              <TopbarDropdownItem
-                onClick={() => {
-                  navigate("/subscribe");
-                }}
-                asChild
-              >
-                <Button
-                  className="flex w-full items-center"
-                  variant="secondaryColour"
-                >
-                  Upgrade to Starter Plan
-                </Button>
-              </TopbarDropdownItem>
-            </TopbarDropdownGroup>
-          </React.Fragment>
-        ) : null}
+        {/* Subscription upgrade CTA is EE-only */}
       </DropdownMenu.Content>
     </DropdownMenu.Root>
   ) : (

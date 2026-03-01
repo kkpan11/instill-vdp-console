@@ -5,6 +5,8 @@ import * as z from "zod";
 
 import { Nullable } from "../../type";
 
+const fileOrString = z.instanceof(File).or(z.string());
+
 export function transformPipelineTriggerRequestFieldsToZod(
   fields: Nullable<PipelineVariableFieldMap>,
 ) {
@@ -13,6 +15,9 @@ export function transformPipelineTriggerRequestFieldsToZod(
   if (!fields) return zodSchema;
 
   for (const [key, value] of Object.entries(fields)) {
+    // Skip the fields that don't have value or instillFormat
+    if (!value || !value.instillFormat) continue;
+
     switch (value.instillFormat) {
       case "string":
         zodSchema = zodSchema.setKey(key, z.string().nullable().optional());
@@ -41,42 +46,53 @@ export function transformPipelineTriggerRequestFieldsToZod(
             .optional(),
         );
         break;
+      case "audio":
       case "audio/*":
-        zodSchema = zodSchema.setKey(key, z.string().nullable().optional());
+        zodSchema = zodSchema.setKey(key, fileOrString.nullable().optional());
         break;
+      case "array:audio":
       case "array:audio/*":
         zodSchema = zodSchema.setKey(
           key,
           z.array(z.string().nullable().optional()).nullable().optional(),
         );
         break;
+      case "image":
       case "image/*":
-        zodSchema = zodSchema.setKey(key, z.string().nullable().optional());
+        zodSchema = zodSchema.setKey(key, fileOrString.nullable().optional());
         break;
+      case "array:image":
       case "array:image/*":
         zodSchema = zodSchema.setKey(
           key,
           z.array(z.string().nullable().optional()).nullable().optional(),
         );
         break;
+      case "video":
       case "video/*":
-        zodSchema = zodSchema.setKey(key, z.string().nullable().optional());
+        zodSchema = zodSchema.setKey(key, fileOrString.nullable().optional());
         break;
+      case "array:video":
       case "array:video/*":
         zodSchema = zodSchema.setKey(
           key,
           z.array(z.string().nullable().optional()).nullable().optional(),
         );
         break;
+      case "file":
       case "*/*":
-        zodSchema = zodSchema.setKey(key, z.string().nullable().optional());
+      case "document":
+        zodSchema = zodSchema.setKey(key, fileOrString.nullable().optional());
         break;
+      case "array:file":
       case "array:*/*":
+      case "array:document":
         zodSchema = zodSchema.setKey(
           key,
           z.array(z.string().nullable().optional()).nullable().optional(),
         );
         break;
+      case "json":
       case "semi-structured/json":
         zodSchema = zodSchema.setKey(key, z.string().nullable().optional());
         break;

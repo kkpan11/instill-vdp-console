@@ -1,9 +1,16 @@
 import { redirect } from "next/navigation";
 
-type Props = {
-  params: { entity: string };
+type RedirectionDashboardPageProps = {
+  params: Promise<{ id: string; entity: string }>;
 };
 
-export default async function Page({ params }: Props) {
-  redirect(`/${params.entity}/dashboard/pipeline`);
-}
+const RedirectionDashboardPage = async (
+  props: RedirectionDashboardPageProps,
+) => {
+  const params = await props.params;
+  const { entity } = params;
+
+  return redirect(`/${entity}/dashboard/activity`);
+};
+
+export default RedirectionDashboardPage;

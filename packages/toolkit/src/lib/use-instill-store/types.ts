@@ -1,7 +1,23 @@
-import type { Secret, TriggerNamespacePipelineResponse } from "instill-sdk";
-import { Edge, Node, OnConnect, OnEdgesChange, OnNodesChange } from "reactflow";
+import type {
+  GeneralRecord,
+  PipelineStreamStatus,
+  Secret,
+  TriggerNamespacePipelineResponse,
+  TriggerUserPipelineWithStreamData,
+} from "instill-sdk";
+import { Monaco } from "@monaco-editor/react";
+import { editor } from "monaco-editor";
+import {
+  Edge,
+  Node,
+  OnConnect,
+  OnEdgesChange,
+  OnNodesChange,
+  ReactFlowInstance,
+} from "reactflow";
 
 import { NodeData } from "../../view";
+import { EditorRecipeUpdater } from "../../view/recipe-editor/lib";
 import { Nullable } from "../type";
 import { InstillJSONSchema } from "../use-instill-form";
 import { SmartHint } from "../use-smart-hint";
@@ -38,6 +54,8 @@ export type PipelineBuilderState = {
   tempSavedNodesForEditingIteratorFlow: Node<NodeData>[];
   editingIteratorID: Nullable<string>;
   warnUnsavedChangesDialogState: WarnUnsavedChangesDialogState;
+  triggerWithStreamData: TriggerUserPipelineWithStreamData[];
+  displayEventNodes: boolean;
 };
 
 export type PipelineBuilderAction = {
@@ -93,6 +111,12 @@ export type PipelineBuilderAction = {
   updateWarnUnsavdChangesDialogState: (
     fn: (prev: WarnUnsavedChangesDialogState) => WarnUnsavedChangesDialogState,
   ) => void;
+  updateTriggerWithStreamData: (
+    fn: (
+      prev: TriggerUserPipelineWithStreamData[],
+    ) => TriggerUserPipelineWithStreamData[],
+  ) => void;
+  updateDisplayEventNodes: (fn: (prev: boolean) => boolean) => void;
 };
 
 export type PipelineBuilderSlice = PipelineBuilderState & PipelineBuilderAction;
@@ -118,6 +142,158 @@ export type GeneralSlice = {
   updateNavigationNamespaceAnchor: (
     fn: (prev: Nullable<string>) => Nullable<string>,
   ) => void;
+  isTrialEndReadOnly: boolean;
+  updateIsTrialEndReadOnly: (fn: (prev: boolean) => boolean) => void;
+};
+export enum DefaultEditorViewIDs {
+  MAIN_PREVIEW_FLOW,
+  MAIN_INPUT,
+  MAIN_OUTPUT,
+  GETTING_STARTED,
+}
+
+export type EditorViewID = string | DefaultEditorViewIDs;
+
+export type EditorViewType = "preview" | "docs" | "input" | "output";
+
+export type EditorView = {
+  id: EditorViewID;
+  type: EditorViewType;
+  view: React.ReactNode;
+  title: string;
+  closeable: boolean;
+};
+
+export type EditorViewSection = {
+  views: EditorView[];
+  currentViewId: Nullable<EditorViewID>;
+};
+
+export type EditorMultiScreenModel = {
+  main: EditorViewSection;
+  topRight: EditorViewSection;
+  bottomRight: EditorViewSection;
+};
+
+export type EditorSlice = {
+  openActionCmdk: boolean;
+  updateOpenActionCmdk: (fn: (prev: boolean) => boolean) => void;
+  openComponentCmdo: boolean;
+  updateOpenComponentCmdo: (fn: (prev: boolean) => boolean) => void;
+  selectedComponentId: Nullable<string>;
+  updateSelectedComponentId: (
+    fn: (prev: Nullable<string>) => Nullable<string>,
+  ) => void;
+  editorRef: Nullable<editor.IStandaloneCodeEditor>;
+  updateEditorRef: (
+    fn: (
+      prev: Nullable<editor.IStandaloneCodeEditor>,
+    ) => Nullable<editor.IStandaloneCodeEditor>,
+  ) => void;
+  monacoRef: Nullable<Monaco>;
+  updateMonacoRef: (fn: (prev: Nullable<Monaco>) => Nullable<Monaco>) => void;
+
+  /**
+   * We use this value to control the multile screen editor
+   */
+  editorMultiScreenModel: EditorMultiScreenModel;
+  updateEditorMultiScreenModel: (
+    fn: (prev: EditorMultiScreenModel) => EditorMultiScreenModel,
+  ) => void;
+
+  /**
+   * This is used to store the react flow instance for the editor preview
+   * You can control the react flow instance via this instance
+   */
+  editorPreviewReactFlowInstance: Nullable<ReactFlowInstance>;
+  updateEditorPreviewReactFlowInstance: (
+    fn: (prev: Nullable<ReactFlowInstance>) => Nullable<ReactFlowInstance>,
+  ) => void;
+  /**
+   * This value is only for caching the user input in the editor.
+   *
+   * Don't use this to update the raw value of the editor. If it is for actions like
+   * adding a new component, updating a component, etc, use the respective actions
+   * from the monaco-editor to have history record for undo/redo.
+   * @returns void
+   */
+  rawRecipeOnDom: Nullable<string>;
+  updateRawRecipeOnDom: (
+    fn: (prev: Nullable<string>) => Nullable<string>,
+  ) => void;
+  isSavingRecipe: boolean;
+  updateIsSavingRecipe: (fn: (prev: boolean) => boolean) => void;
+  hasUnsavedRecipe: boolean;
+  updateHasUnsavedRecipe: (fn: (prev: boolean) => boolean) => void;
+
+  /**
+   * This is used to trigger the import recipe file uploader
+   * Once this is triggered and the user select the desired file,
+   * The import recipe dialog will be opened and the file will be read
+   */
+  importRecipeInputTriggerRef: React.MutableRefObject<HTMLInputElement>;
+
+  /**
+   * This is used to store the pipeline and component status, input, output, and error
+   * for the trigger pipeline stream
+   */
+  triggerPipelineStreamMap: Nullable<TriggerPipelineStreamMap>;
+  updateTriggerPipelineStreamMap: (
+    fn: (
+      prev: Nullable<TriggerPipelineStreamMap>,
+    ) => Nullable<TriggerPipelineStreamMap>,
+  ) => void;
+
+  /**
+   * This is the ref for run button
+   * You can use this ref to click the run button and then trigger the pipeline
+   */
+  runButtonRef: React.MutableRefObject<HTMLButtonElement>;
+  updateRunButtonRef: (
+    fn: (
+      prev: React.MutableRefObject<HTMLButtonElement>,
+    ) => React.MutableRefObject<HTMLButtonElement>,
+  ) => void;
+
+  /**
+   * This is the returned of useDebouncedRecipeUpdater, we store it in the store
+   * due to we might want to cancel or flush all the debounce invokion like when
+   * user force saved using autonomousRecipeUpdater
+   */
+  editorDebouncedRecipeUpdater: Nullable<EditorRecipeUpdater>;
+  updateEditorDebouncedRecipeUpdater: (
+    fn: (prev: Nullable<EditorRecipeUpdater>) => Nullable<EditorRecipeUpdater>,
+  ) => void;
+
+  /**
+   * This is to control the flow's control is under demo mode or not
+   * When in the editor, it will be false
+   * When in the pipeline preview, it will be true
+   */
+  flowIsUnderDemoMode: boolean;
+  updateFlowIsUnderDemoMode: (fn: (prev: boolean) => boolean) => void;
+};
+
+export type FeatureFlagSlice = {
+  featureFlagChatEnabled: boolean;
+  updateFeatureFlagChatEnabled: (fn: (prev: boolean) => boolean) => void;
+};
+
+export type TriggerPipelineStreamMap = {
+  component?: Record<
+    string,
+    {
+      status?: PipelineStreamStatus;
+      input?: GeneralRecord;
+      output?: GeneralRecord;
+      error?: GeneralRecord;
+    }
+  >;
+  pipeline?: {
+    status?: PipelineStreamStatus;
+    output?: GeneralRecord;
+    error?: GeneralRecord;
+  };
 };
 
 export type RecentlyUsedSlice = {
@@ -127,10 +303,15 @@ export type RecentlyUsedSlice = {
   ) => void;
 };
 
+// Note: Table, Folder, and Chat-related types have been moved to console-ee
+// as they are EE-only features. Only CE types should remain in this file.
+
 export type InstillStore = SmartHintSlice &
   PipelineBuilderSlice &
   GeneralSlice &
-  RecentlyUsedSlice;
+  RecentlyUsedSlice &
+  EditorSlice &
+  FeatureFlagSlice;
 
 export type InstillStoreMutators = [
   ["zustand/devtools", never],

@@ -6,12 +6,13 @@ import { CreateNamespacePipelineReleaseRequest } from "instill-sdk";
 import { useForm, UseFormReturn } from "react-hook-form";
 import * as z from "zod";
 
-import { Button, Form, useToast } from "@instill-ai/design-system";
+import { Button, Form } from "@instill-ai/design-system";
 
 import { LoadingSpin } from "../../../../components";
 import {
   InstillStore,
   toastInstillError,
+  toastInstillSuccess,
   useCreateNamespacePipelineRelease,
   useInstillStore,
   useRouteInfo,
@@ -30,7 +31,7 @@ export type UseReleasePipelineFormReturn = UseFormReturn<
   z.infer<typeof ReleasePipelineFormSchema>,
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   any,
-  undefined
+  z.infer<typeof ReleasePipelineFormSchema>
 >;
 
 const selector = (store: InstillStore) => ({
@@ -38,7 +39,6 @@ const selector = (store: InstillStore) => ({
 });
 
 export const ReleaseMenu = ({ onRelease }: { onRelease?: () => void }) => {
-  const { toast } = useToast();
   const routeInfo = useRouteInfo();
   const [isReleasing, setIsReleasing] = React.useState(false);
   const form = useForm<z.infer<typeof ReleasePipelineFormSchema>>({
@@ -51,12 +51,17 @@ export const ReleaseMenu = ({ onRelease }: { onRelease?: () => void }) => {
 
   const onSubmit = React.useCallback(
     async (data: z.infer<typeof ReleasePipelineFormSchema>) => {
-      if (!routeInfo.isSuccess || !routeInfo.data.pipelineName) {
+      if (
+        !routeInfo.isSuccess ||
+        !routeInfo.data.namespaceId ||
+        !routeInfo.data.resourceId
+      ) {
         return;
       }
 
       const payload: CreateNamespacePipelineReleaseRequest = {
-        namespacePipelineName: routeInfo.data.pipelineName,
+        pipelineId: routeInfo.data.resourceId,
+        namespaceId: routeInfo.data.namespaceId,
         id: data.id,
         description: data.description ?? undefined,
       };
@@ -72,10 +77,8 @@ export const ReleaseMenu = ({ onRelease }: { onRelease?: () => void }) => {
           description: null,
         });
 
-        toast({
+        toastInstillSuccess({
           title: "Successfully release pipeline",
-          variant: "alert-success",
-          size: "small",
         });
 
         setIsReleasing(false);
@@ -89,7 +92,6 @@ export const ReleaseMenu = ({ onRelease }: { onRelease?: () => void }) => {
         toastInstillError({
           title:
             "Something went wrong when release pipeline, please try again later",
-          toast,
           error,
         });
       }
@@ -100,7 +102,6 @@ export const ReleaseMenu = ({ onRelease }: { onRelease?: () => void }) => {
       onRelease,
       createPipelineRelease,
       setIsReleasing,
-      toast,
       routeInfo.isSuccess,
       routeInfo.data.pipelineName,
     ],

@@ -1,7 +1,9 @@
-import { Organization, User } from "../core";
+import { ResourceView, RunSource, RunStatus } from "..";
+import { User } from "../mgmt";
 import {
   GeneralRecord,
   InstillJSONSchema,
+  Nullable,
   Operation,
   Permission,
   Visibility,
@@ -18,7 +20,8 @@ export type ModelState =
   | "STATE_UNSPECIFIED"
   | "STATE_STARTING"
   | "STATE_OFFLINE"
-  | "STATE_SCALING"
+  | "STATE_SCALING_UP"
+  | "STATE_SCALING_DOWN"
   | "STATE_ACTIVE"
   | "STATE_IDLE"
   | "STATE_ERROR";
@@ -30,11 +33,12 @@ export type ModelTask =
   | "TASK_OCR"
   | "TASK_INSTANCE_SEGMENTATION"
   | "TASK_SEMANTIC_SEGMENTATION"
-  | "TASK_TEXT_GENERATION"
-  | "TASK_TEXT_GENERATION_CHAT"
   | "TASK_TEXT_TO_IMAGE"
-  | "TASK_IMAGE_TO_IMAGE"
-  | "TASK_VISUAL_QUESTION_ANSWERING";
+  | "TASK_EMBEDDING"
+  //| "TASK_SPEECH_RECOGNITION"
+  | "TASK_CHAT"
+  | "TASK_COMPLETION"
+  | "TASK_CUSTOM";
 
 export type ModelReadme = {
   name: string;
@@ -57,22 +61,39 @@ export type ModelDefinition = {
   updateTime: string;
 };
 
+export type Hardware = {
+  title: string;
+  value: string;
+};
+
 export type Model = {
+  // ===== Standard AIP fields =====
+  // Canonical resource name. Format: `namespaces/{namespace}/models/{model}`
   name: string;
-  uid: string;
+  // Immutable canonical resource ID (e.g., "mod-8f3a2k9E7c1")
   id: string;
-  description: string;
+  // Human-readable display name for UI
+  displayName: string;
+  // URL-friendly slug (NO prefix)
+  slug?: string;
+  // Previous slugs for backward compatibility
+  aliases?: string[];
+  // Optional description
+  description?: string;
+  // ===== Timestamps =====
+  createTime: string;
+  updateTime: string | null;
+  deleteTime?: string | null;
+  // ===== Resource-specific fields =====
   modelDefinition: string;
   configuration: Record<string, string>;
   task: ModelTask;
   visibility: Visibility;
-  createTime: string;
-  updateTime: string | null;
-  deleteTime: string | null;
   ownerName: string;
+  // NOTE: organization owner is EE-only (available in console-ee)
   owner: {
     user?: User;
-    organization?: Organization;
+    organization?: GeneralRecord;
   };
   region: string;
   hardware: string;
@@ -86,11 +107,17 @@ export type Model = {
   outputSchema: InstillJSONSchema | null;
   sampleInput: Record<string, GeneralRecord>;
   sampleOutput: Record<string, GeneralRecord>;
+  stats: {
+    numberOfRuns: number;
+    lastRunTime: string;
+  };
+  versions: string[];
+  tags: string[];
 };
 
 export type ModelRegion = {
   regionName: string;
-  hardware: string[];
+  hardware: Hardware[];
 };
 
 export type ModelWatchState = {
@@ -117,7 +144,7 @@ export type GetModelDefinitionResponse = {
 export type ListModelDefinitionsRequest = {
   pageSize?: number;
   pageToken?: string;
-  view?: string;
+  view?: ResourceView;
 };
 
 export type ListModelDefinitionsResponse = {
@@ -130,24 +157,25 @@ export type ListAvailableRegionResponse = {
   regions: ModelRegion[];
 };
 
-export type ListAccessibleModelsRequest = {
+export type ListModelsRequest = {
   pageSize?: number;
   pageToken?: string;
   filter?: string;
   visibility?: string;
   orderBy?: string;
-  view?: string;
+  view?: ResourceView;
 };
 
-export type ListAccessibleModelsResponse = {
+export type ListModelsResponse = {
   models: Model[];
   nextPageToken: string;
   totalSize: number;
 };
 
 export type GetNamespaceModelRequest = {
-  namespaceModelName: string;
-  view?: string;
+  namespaceId: string;
+  modelId: string;
+  view?: ResourceView;
 };
 
 export type GetNamespaceModelResponse = {
@@ -155,13 +183,13 @@ export type GetNamespaceModelResponse = {
 };
 
 export type ListNamespaceModelsRequest = {
-  namespaceName: string;
+  namespaceId: string;
   pageSize?: number;
   pageToken?: string;
   filter?: string;
-  visibility?: string;
+  visibility?: Visibility;
   orderBy?: string;
-  view?: string;
+  view?: ResourceView;
 };
 
 export type ListNamespaceModelsResponse = {
@@ -170,8 +198,44 @@ export type ListNamespaceModelsResponse = {
   totalSize: number;
 };
 
+export type ListModelRunsRequest = {
+  namespaceId: string;
+  modelId: string;
+  view?: ResourceView;
+  pageSize?: number;
+  page?: number;
+  orderBy?: string;
+  filter?: string;
+  requesterId?: string;
+};
+
+export type ModelRun = {
+  uid: string;
+  runnerId: string;
+  modelNamespaceId: string;
+  status: RunStatus;
+  source: RunSource;
+  totalDuration: number;
+  endTime: string;
+  createTime: string;
+  updateTime: string;
+  version: string;
+  taskInputs: GeneralRecord[];
+  taskOutputs: GeneralRecord[];
+  creditAmount: Nullable<number>;
+  requesterId: string;
+  modelId?: string;
+};
+
+export type ListModelRunsResponse = {
+  runs: ModelRun[];
+  totalSize: number;
+  pageSize: number;
+  page: number;
+};
+
 export type CreateNamespaceModelRequest = {
-  namespaceName: string;
+  namespaceId: string;
   id: string;
   description?: string;
   visibility: Visibility;
@@ -187,18 +251,26 @@ export type CreateNamespaceModelResponse = {
 };
 
 export type DeleteNamespaceModelRequest = {
-  namespaceModelName: string;
+  namespaceId: string;
+  modelId: string;
 };
 
 export type UpdateNamespaceModelRequest = {
-  namespaceModelName: string;
+  namespaceId: string;
+  modelId: string;
+  id?: string;
   description?: string;
-  visibility: Visibility;
-  region: string;
-  hardware: string;
-  task: ModelTask;
-  modelDefinition: string;
-  configuration: Record<string, string>;
+  visibility?: Visibility;
+  region?: string;
+  hardware?: string;
+  task?: ModelTask;
+  configuration?: Record<string, string>;
+  readme?: string;
+  license?: string;
+  profileImage?: string;
+  sourceUrl?: string;
+  documentationUrl?: string;
+  tags?: string[];
 };
 
 export type UpdateNamespaceModelResponse = {
@@ -247,13 +319,15 @@ export type WatchNamespaceModelVersionStateResponse = {
 };
 
 export type WatchNamespaceModelLatestVersionStateRequest = {
-  namespaceModelName: string;
+  namespaceId: string;
+  modelId: string;
 };
 
 export type WatchNamespaceModelLatestVersionStateResponse = ModelWatchState;
 
 export type ListNamespaceModelVersionsRequest = {
-  namespaceModelName: string;
+  namespaceId: string;
+  modelId: string;
   pageSize?: number;
   page?: number;
 };
@@ -272,6 +346,7 @@ export type DeleteNamespaceModelVersionRequest = {
 export type TriggerNamespaceModelVersionRequest = {
   namespaceModelVersionName: string;
   taskInputs: Record<string, unknown>[];
+  isConsole?: boolean;
 };
 
 export type TriggerNamespaceModelVersionResponse = {
@@ -280,8 +355,13 @@ export type TriggerNamespaceModelVersionResponse = {
 };
 
 export type TriggerAsyncNamespaceModelVersionRequest = {
-  namespaceModelVersionName: string;
+  namespaceId: string;
+  modelId: string;
+  versionId: string;
   taskInputs: Record<string, unknown>[];
+  returnTraces?: boolean;
+  requesterId?: string;
+  isConsole?: boolean;
 };
 
 export type TriggerAsyncNamespaceModelVersionResponse = {
@@ -305,4 +385,60 @@ export type TriggerAsyncNamespaceModelLatestVersionRequest = {
 
 export type TriggerAsyncNamespaceModelLatestVersionResponse = {
   operation: Operation;
+};
+
+export type GetNamespaceModelOperationResultRequest = {
+  namespaceId: string;
+  modelId: string;
+  view?: ResourceView;
+  requesterId?: string;
+};
+
+export type GetNamespaceModelOperationResultResponse = {
+  operation: Nullable<Operation>;
+};
+
+export type GetNamespaceModelVersionOperationResultRequest = {
+  namespaceId: string;
+  modelId: string;
+  versionId: string;
+  view?: ResourceView;
+  requesterId?: string;
+};
+
+export type GetNamespaceModelVersionOperationResultResponse = {
+  operation: Nullable<Operation>;
+};
+
+export type ModelTriggerStatus =
+  | "STATUS_UNSPECIFIED"
+  | "STATUS_COMPLETED"
+  | "STATUS_ERRORED";
+
+export type ModelTriggersStatusSummaryItem = {
+  statusType: ModelTriggerStatus;
+  amount: number;
+  type: "pipeline" | "model";
+  delta: number;
+};
+
+export type ModelTriggersStatusSummary = {
+  completed: ModelTriggersStatusSummaryItem;
+  errored: ModelTriggersStatusSummaryItem;
+};
+
+export type ModelsWatchState = Record<string, Nullable<ModelWatchState>>;
+
+export type ListModelRunsByRequesterRequest = {
+  pageSize?: number;
+  page: Nullable<number>;
+  orderBy?: string;
+  requesterId?: string;
+  start?: string;
+};
+
+export type ListModelRunsByRequesterResponse = {
+  runs: ModelRun[];
+  nextPageToken: string;
+  totalSize: number;
 };

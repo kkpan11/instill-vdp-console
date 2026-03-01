@@ -5,25 +5,28 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import cn from "clsx";
+import { InstillNameInterpreter } from "instill-sdk";
 
 import {
   Button,
   Icons,
-  Popover,
-  ScrollArea,
   Skeleton,
   TabMenu,
   Tag,
-  toast,
 } from "@instill-ai/design-system";
 
-import { ClonePipelineDialog, HeadExternalLink } from "../../../components";
+import {
+  ClonePipelineDialog,
+  HeadExternalLink,
+  VersionDropdownSelector,
+} from "../../../components";
 import { NamespaceAvatarWithFallback } from "../../../components/NamespaceAvatarWithFallback";
 import {
   InstillStore,
   isPublicPipeline,
   Nullable,
   toastInstillError,
+  toastInstillSuccess,
   useAuthenticatedUser,
   useDeleteNamespacePipeline,
   useInstillStore,
@@ -66,63 +69,63 @@ export const Head = ({
   const activeVersion = searchParams.get("version");
   const { accessToken, enabledQuery } = useInstillStore(useShallow(selector));
 
-  const [isVersionSelectorOpen, setIsVersionSelectorOpen] =
-    React.useState<boolean>(false);
-
   const routeInfo = useRouteInfo();
 
   const me = useAuthenticatedUser({
     enabled: enabledQuery,
     accessToken,
-    retry: false,
   });
 
   const deletePipeline = useDeleteNamespacePipeline();
   async function handleDeletePipeline() {
-    if (!accessToken || !pipeline) {
+    if (
+      !accessToken ||
+      !pipeline ||
+      !routeInfo.isSuccess ||
+      !routeInfo.data.namespaceId
+    ) {
       return;
     }
 
+    const instillName = InstillNameInterpreter.pipeline(pipeline.name);
+
     try {
       await deletePipeline.mutateAsync({
-        namespacePipelineName: pipeline.name,
+        namespaceId: instillName.namespaceId,
+        pipelineId: pipeline.id,
         accessToken: accessToken ? accessToken : null,
       });
 
-      toast({
+      toastInstillSuccess({
         title: "Pipeline deleted",
-        variant: "alert-success",
-        size: "large",
       });
+
       router.push(`/${routeInfo.data.namespaceId}/pipelines`);
     } catch (error) {
       console.log(error);
       toastInstillError({
         title: "Something went wrong when delete the pipeline",
         error,
-        toast,
       });
     }
   }
 
+  // NOTE: In CE, owner is always a user (organizations are EE-only)
   const owner = React.useMemo(() => {
     if (!pipeline) {
       return DEFAULT_OWNER;
     }
 
-    const owner =
-      "user" in pipeline.owner
-        ? pipeline.owner.user
-        : pipeline.owner.organization;
+    const user = pipeline.owner?.user;
 
-    if (!owner || !owner.profile) {
+    if (!user || !user.profile) {
       return DEFAULT_OWNER;
     }
 
     return {
-      avatarUrl: owner.profile.avatar || "",
-      id: owner.id || "",
-      displayName: owner.profile.displayName || "",
+      avatarUrl: user.profile.avatar || "",
+      id: user.id || "",
+      displayName: user.profile.displayName || "",
     };
   }, [pipeline]);
 
@@ -159,14 +162,23 @@ export const Head = ({
               </div>
             </React.Fragment>
           )}
-          {pipeline && !isPublicPipeline(pipeline) ? (
+          {pipeline ? (
             <Tag
               className="my-auto h-6 gap-x-1 !border-0 !py-0 !text-sm"
               variant="lightNeutral"
               size="sm"
             >
-              <Icons.Lock03 className="h-3 w-3 stroke-semantic-fg-primary" />
-              Private
+              {isPublicPipeline(pipeline) ? (
+                <React.Fragment>
+                  <Icons.BookOpen02 className="h-3 w-3 stroke-semantic-fg-primary" />
+                  Public
+                </React.Fragment>
+              ) : (
+                <React.Fragment>
+                  <Icons.Lock03 className="h-3 w-3 stroke-semantic-fg-primary" />
+                  Private
+                </React.Fragment>
+              )}
             </Tag>
           ) : null}
           {pipeline?.documentationUrl ? (
@@ -176,62 +188,11 @@ export const Head = ({
             </HeadExternalLink>
           ) : null}
           {!!releases?.length && pipeline ? (
-            <Popover.Root
-              onOpenChange={() =>
-                setIsVersionSelectorOpen(!isVersionSelectorOpen)
-              }
-              open={isVersionSelectorOpen}
-            >
-              <Popover.Trigger asChild={true} className="my-auto">
-                <Button
-                  className={cn(
-                    "!h-8 !w-[145px] gap-x-1 !rounded-sm !border border-[#E1E6EF] !py-1 px-3 !transition-opacity !duration-300 !ease-in-out ml-auto",
-                    isVersionSelectorOpen
-                      ? "border-opacity-100 !bg-semantic-accent-bg "
-                      : "border-opacity-0",
-                  )}
-                  size="sm"
-                  variant="tertiaryColour"
-                  type="button"
-                  onClick={() => setIsVersionSelectorOpen(true)}
-                >
-                  <Tag size="sm" variant="darkPurple" className="h-6 gap-x-2">
-                    Version {activeVersion}
-                  </Tag>
-                  <Icons.ChevronDown className="h-4 w-4 stroke-semantic-fg-primary" />
-                </Button>
-              </Popover.Trigger>
-              <Popover.Content
-                side="top"
-                sideOffset={4}
-                align="start"
-                className="flex h-[180px] w-[145px] flex-col !rounded-sm !p-0"
-              >
-                <ScrollArea.Root>
-                  <div className="flex flex-col gap-y-1 px-1.5 py-1">
-                    {releases.length > 0 ? (
-                      <React.Fragment>
-                        {releases.map((release) => (
-                          <VersionButton
-                            key={release.id}
-                            id={release.id}
-                            currentVersion={activeVersion}
-                            onClick={() => {
-                              onActiveVersionUpdate(release.id);
-                              setIsVersionSelectorOpen(false);
-                            }}
-                          />
-                        ))}
-                      </React.Fragment>
-                    ) : (
-                      <div className="p-2 text-semantic-fg-disabled product-body-text-4-medium">
-                        This pipeline has no released versions.
-                      </div>
-                    )}
-                  </div>
-                </ScrollArea.Root>
-              </Popover.Content>
-            </Popover.Root>
+            <VersionDropdownSelector
+              activeVersion={activeVersion}
+              versions={releases.map((release) => release.id)}
+              onVersionUpdate={onActiveVersionUpdate}
+            />
           ) : null}
         </div>
         {!isReady ? (
@@ -248,9 +209,6 @@ export const Head = ({
                 variant="lightNeutral"
                 size="sm"
               >
-                {/* task.getIcon(
-                    `w-3 h-3 ${["TASK_TEXT_GENERATION_CHAT", "TASK_IMAGE_TO_IMAGE", "TASK_VISUAL_QUESTION_ANSWERING"].includes(model?.task || "") ? "stroke-semantic-secondary-on-bg [&>*]:!stroke-semantic-secondary-on-bg" : "[&>*]:!fill-semantic-secondary-on-bg"}`,
-                  ) */}
                 {tag}
               </Tag>
             ))}
@@ -301,14 +259,15 @@ export const Head = ({
                   <Icons.CheckCircle className="h-4 w-4" />
                   Examples
                 </TabMenu.Item> */}
+
               <TabMenu.Item value="preview">
                 <Icons.Dataflow03 className="h-4 w-4" />
                 Preview
               </TabMenu.Item>
-              {/* <TabMenu.Item value="runs">
+              <TabMenu.Item value="runs">
                 <Icons.Zap className="h-4 w-4" />
                 Runs
-              </TabMenu.Item> */}
+              </TabMenu.Item>
               <TabMenu.Item value="versions">
                 <Icons.ClockRewind className="h-4 w-4" />
                 Versions
@@ -356,19 +315,21 @@ export const Head = ({
                     </Button>
                   )}
                   {pipeline.permission.canEdit ? (
-                    <Button
-                      onClick={() => {
-                        router.push(
-                          `/${routeInfo.data.namespaceId}/pipelines/${routeInfo.data.resourceId}/editor`,
-                        );
-                      }}
-                      size="md"
-                      variant="secondaryGrey"
-                      className="gap-x-2 h-[32px]"
-                    >
-                      <Icons.Tool01 className="h-4 w-4 stroke-semantic-fg-secondary" />
-                      Edit
-                    </Button>
+                    <React.Fragment>
+                      <Button
+                        onClick={() => {
+                          router.push(
+                            `/${routeInfo.data.namespaceId}/pipelines/${routeInfo.data.resourceId}/editor`,
+                          );
+                        }}
+                        size="md"
+                        variant="secondaryGrey"
+                        className="gap-x-2 h-[32px]"
+                      >
+                        <Icons.Tool01 className="h-4 w-4 stroke-semantic-fg-secondary" />
+                        Edit
+                      </Button>
+                    </React.Fragment>
                   ) : null}
                 </React.Fragment>
               ) : (
@@ -382,38 +343,5 @@ export const Head = ({
         )}
       </div>
     </div>
-  );
-};
-
-const VersionButton = ({
-  id,
-  currentVersion,
-  onClick,
-}: {
-  id: string;
-  currentVersion: Nullable<string>;
-  onClick: () => void;
-}) => {
-  return (
-    <Button
-      key={id}
-      className={cn(
-        "w-full !px-2 !py-1.5",
-        currentVersion === id ? "!bg-semantic-bg-secondary" : "",
-      )}
-      variant={"tertiaryColour"}
-      onClick={onClick}
-    >
-      <div className="flex w-full flex-row gap-x-2">
-        <div className="my-auto h-2 w-[9px] rounded-full bg-semantic-secondary-default"></div>
-        <p
-          className={cn(
-            "w-full text-left text-semantic-fg-secondary product-body-text-3-medium",
-          )}
-        >
-          Version {id}
-        </p>
-      </div>
-    </Button>
   );
 };

@@ -1,22 +1,24 @@
+"use client";
+
+import type { Nullable } from "instill-sdk";
 import { useQuery } from "@tanstack/react-query";
 
 import { env } from "../../../server";
-import { Nullable } from "../../type";
-import { getInstillAPIClient } from "../../vdp-sdk";
+import { getInstillAPIClient } from "../../sdk-helper";
 
 export function usePipelineTriggerMetric({
   enabled,
   accessToken,
   filter,
-  retry,
+  requesterId,
 }: {
   enabled: boolean;
   accessToken: Nullable<string>;
   filter: Nullable<string>;
-  retry?: false | number;
+  requesterId?: string;
 }) {
   return useQuery({
-    queryKey: ["tables", filter],
+    queryKey: ["tables", filter, requesterId],
     queryFn: async () => {
       if (!accessToken) {
         return Promise.reject(new Error("accessToken not provided"));
@@ -24,7 +26,7 @@ export function usePipelineTriggerMetric({
 
       const client = getInstillAPIClient({ accessToken });
 
-      const triggerMetric = await client.core.metric.listPipelineTriggerMetric({
+      const triggerMetric = await client.mgmt.metric.listPipelineTriggerMetric({
         pageSize: env("NEXT_PUBLIC_QUERY_PAGE_SIZE"),
         filter: filter ?? undefined,
         enablePagination: false,
@@ -33,6 +35,5 @@ export function usePipelineTriggerMetric({
       return Promise.resolve(triggerMetric);
     },
     enabled,
-    retry: retry === false ? false : retry ? retry : 3,
   });
 }

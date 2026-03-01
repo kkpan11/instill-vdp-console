@@ -1,22 +1,23 @@
-import { Metadata } from "next";
+import type { Nullable, User } from "instill-sdk";
+import type { Metadata } from "next";
 
-import { Nullable, User } from "@instill-ai/toolkit";
-import { fetchUser } from "@instill-ai/toolkit/server";
+import { fetchUser, generateNextMetaBase } from "@instill-ai/toolkit/server";
 
 import { ProfilePageRender } from "./render";
 
 type Props = {
-  params: { id: string; entity: string };
+  params: Promise<{ id: string; entity: string }>;
 };
 
-export async function generateMetadata({
-  params,
-}: Props): Promise<Metadata | undefined> {
+export async function generateMetadata(
+  props: Props,
+): Promise<Metadata | undefined> {
+  const params = await props.params;
   try {
     let user: Nullable<User> = null;
 
     user = await fetchUser({
-      userName: "users/" + params.entity,
+      userId: params.entity,
 
       // This is a public route, we don't need to request it with access token
       accessToken: null,
@@ -24,6 +25,9 @@ export async function generateMetadata({
 
     const metadata: Metadata = {
       title: `Instill Core | ${params.entity}`,
+      metadataBase: generateNextMetaBase({
+        defaultBase: "http://localhost:3000",
+      }),
       description: user.profile?.bio,
       openGraph: {
         images: ["/instill-open-graph.png"],

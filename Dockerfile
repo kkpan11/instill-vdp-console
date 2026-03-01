@@ -4,13 +4,13 @@ FROM --platform=$BUILDPLATFORM node:20-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-RUN npm install -g pnpm@9.1.4
+RUN npm install -g pnpm@10.12.1
 
-COPY . . 
+COPY . .
 
 RUN pnpm install --frozen-lockfile
 
-RUN pnpm run build 
+RUN pnpm run build
 
 # Production image, copy all the files and run next
 FROM node:20-alpine
@@ -25,7 +25,7 @@ WORKDIR /app
 # ENV NODE_ENV ${NODE_ENV}
 
 # Uncomment the following line in case you want to disable telemetry during runtime.
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # We need bash to run our entrypoint.sh
 RUN apk add --no-cache bash
@@ -33,15 +33,15 @@ RUN apk add --no-cache bash
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Automatically leverage output traces to reduce image size 
+# Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 # Due to this is a monorepo, nextjs will include all the necessary files from
 # packages. So the standalone folder structure will be similar to this
-# - apps 
+# - apps
 #   - console
 # - packages
 #   - design-system
-#   - toolkit 
+#   - toolkit
 
 COPY --from=builder --chown=nextjs:nodejs /app/apps/console/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/console/.next/static ./apps/console/.next/static
@@ -62,7 +62,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/entrypoint.sh ./
 
 USER nextjs
 
-# Permisions to execute script
+# Permissions to execute script
 RUN chmod +x ./entrypoint.sh
 RUN chmod +x ./apps/console/next-env.mjs
 
@@ -72,6 +72,7 @@ RUN chmod +rwx ./apps/console/next-env.mjs
 
 EXPOSE 3000
 
-ENV PORT 3000
-# set hostname to localhost
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+
+# Set hostname to allow access from outside the container
+ENV HOSTNAME="0.0.0.0"

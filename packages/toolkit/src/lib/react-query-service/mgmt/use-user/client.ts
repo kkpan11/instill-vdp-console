@@ -1,38 +1,34 @@
 "use client";
 
+import type { Nullable } from "instill-sdk";
 import { useQuery } from "@tanstack/react-query";
 
-import type { Nullable } from "../../../type";
-import { fetchUser, getUseUserQueryKey } from "./server";
+import { queryKeyStore } from "../../queryKeyStore";
+import { fetchUser } from "./server";
 
 export function useUser({
-  userName,
+  userId,
   accessToken,
   enabled,
-  retry,
 }: {
-  userName: Nullable<string>;
+  userId: Nullable<string>;
   accessToken: Nullable<string>;
   enabled: boolean;
-  retry?: false | number;
 }) {
   let enabledQuery = false;
 
-  if (enabled && userName) {
+  if (enabled && userId) {
     enabledQuery = true;
   }
 
-  const queryKey = getUseUserQueryKey(userName);
-
   return useQuery({
-    queryKey: queryKey,
+    queryKey: queryKeyStore.mgmt.getUseUserQueryKey({ userId }),
     queryFn: async () => {
       return await fetchUser({
-        userName,
+        userId,
         accessToken,
       });
     },
     enabled: enabledQuery,
-    retry: retry === false ? false : retry ? retry : 3,
   });
 }

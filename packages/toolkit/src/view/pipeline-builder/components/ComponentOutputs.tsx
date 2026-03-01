@@ -63,10 +63,11 @@ export const ComponentOutputs = ({
     schema: outputSchema,
     data,
     chooseTitleFrom,
+    forceFormatted: true,
   });
 
   return (
-    <div className="ml-3 flex flex-col">
+    <div className="flex flex-col">
       {nodeType === "connector" ? (
         <div className="mb-2 text-semantic-fg-secondary product-body-text-4-medium">
           Output

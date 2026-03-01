@@ -1,11 +1,17 @@
-import type { Pipeline, PipelineRelease } from "instill-sdk";
+"use client";
 
-import { LoadingSpin } from "../../../components";
+import type { Pipeline, PipelineRelease } from "instill-sdk";
+import * as React from "react";
+import { useRouter } from "next/navigation";
+
+import { PlaygroundSkeleton } from "../../../components";
+import { useRouteInfo } from "../../../lib";
 import { PipelineTabNames } from "../../../server";
 import { PipelineApi } from "./PipelineApi";
 import { PipelinePlayground } from "./PipelinePlayground";
 import { PipelinePreview } from "./PipelinePreview";
 import { PipelineReadme } from "./PipelineReadme";
+import { PipelineRuns } from "./PipelineRuns";
 import { PipelineSettings } from "./PipelineSettings";
 import { PipelineVersions } from "./PipelineVersions";
 
@@ -24,6 +30,20 @@ export const PipelineContentViewer = ({
   releases,
   isReady,
 }: PipelineContentViewerProps) => {
+  const router = useRouter();
+  const routeInfo = useRouteInfo();
+
+  React.useEffect(() => {
+    if (
+      pipeline &&
+      selectedTab === "settings" &&
+      !pipeline.permission.canEdit
+    ) {
+      const playgroundPath = `/${routeInfo.data?.namespaceId}/pipelines/${pipeline.id}/playground`;
+      router.push(playgroundPath);
+    }
+  }, [selectedTab, pipeline, routeInfo.data?.namespaceId, router]);
+
   let content = null;
 
   switch (selectedTab) {
@@ -33,19 +53,15 @@ export const PipelineContentViewer = ({
       break;
     }
     case "versions": {
-      content = (
-        <PipelineVersions
-          pipeline={pipeline}
-          releases={releases}
-          isReady={isReady}
-        />
-      );
+      content = <PipelineVersions releases={releases} isReady={isReady} />;
 
       break;
     }
     case "settings": {
       if (pipeline?.permission.canEdit) {
         content = <PipelineSettings pipeline={pipeline} onUpdate={onUpdate} />;
+      } else {
+        content = null;
       }
 
       break;
@@ -60,11 +76,11 @@ export const PipelineContentViewer = ({
 
       break;
     }
-    /* case "runs": {
+    case "runs": {
       content = <PipelineRuns pipeline={pipeline} />;
 
       break;
-    } */
+    }
     case "playground":
     default: {
       content = <PipelinePlayground pipeline={pipeline} releases={releases} />;
@@ -72,12 +88,8 @@ export const PipelineContentViewer = ({
   }
 
   return (
-    <div className="w-full pt-8 flex-1 flex flex-col">
-      {pipeline ? (
-        content
-      ) : (
-        <LoadingSpin className="m-none !text-semantic-fg-secondary" />
-      )}
+    <div className="w-full pt-8 flex-1 flex flex-col h-full">
+      {pipeline ? content : <PlaygroundSkeleton />}
     </div>
   );
 };

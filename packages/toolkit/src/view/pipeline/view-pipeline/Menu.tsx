@@ -81,16 +81,13 @@ export const Menu = ({ pipeline, handleDeletePipeline }: MenuProps) => {
             namespaceId={routeInfo.data.namespaceId}
             id={routeInfo.data.resourceId}
             ownerDisplayName={
+              // In CE, owner is always a user (organizations are EE-only)
               "user" in pipeline.owner
                 ? (pipeline.owner.user.profile?.displayName ?? null)
-                : (pipeline.owner.organization.profile?.displayName ?? null)
+                : null
             }
           />
-          <PublishPipelineDialog
-            pipelineName={routeInfo.data.pipelineName}
-            entity={routeInfo.data.namespaceId}
-            id={routeInfo.data.resourceId}
-          />
+          <PublishPipelineDialog />
           <ClonePipelineDialog
             pipeline={pipeline}
             open={cloneDialogIsOpen}

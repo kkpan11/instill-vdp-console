@@ -13,6 +13,7 @@ import {
   useShallow,
 } from "../../lib";
 import { useUserNamespaces } from "../../lib/useUserNamespaces";
+import { env } from "../../server";
 
 export type NavLinkProps = {
   title: string;
@@ -36,9 +37,19 @@ const navLinkItems: NavLinkProps[] = [
     strict: true,
   },
   {
-    pathname: "dashboard/pipeline",
+    pathname: "knowledge-base",
+    Icon: Icons.Database01,
+    title: "Artifacts",
+  },
+  {
+    pathname: "dashboard",
     Icon: Icons.BarChartSquare02,
     title: "Dashboard",
+  },
+  {
+    pathname: "agents",
+    Icon: Icons.CubeOutline,
+    title: "Chat",
   },
 ];
 
@@ -71,11 +82,15 @@ export const NavLink = ({
     }
   }, [pathname, currentPathname, strict, isExploreRoute]);
 
-  const namespaces = useUserNamespaces();
+  const userNamespaces = useUserNamespaces();
 
   const namespaceAnchor = React.useMemo(() => {
+    if (!userNamespaces.isSuccess) {
+      return null;
+    }
+
     if (!navigationNamespaceAnchor) {
-      const userNamespace = namespaces.find(
+      const userNamespace = userNamespaces.data.find(
         (namespace) => namespace.type === "user",
       );
 
@@ -85,7 +100,11 @@ export const NavLink = ({
     }
 
     return navigationNamespaceAnchor;
-  }, [namespaces, navigationNamespaceAnchor]);
+  }, [
+    userNamespaces.isSuccess,
+    userNamespaces.data,
+    navigationNamespaceAnchor,
+  ]);
 
   return (
     <button
@@ -126,15 +145,24 @@ export const NavLinks = ({ isExploreRoute }: { isExploreRoute?: boolean }) => {
   return (
     <React.Fragment>
       {me.isSuccess
-        ? navLinkItems.map(({ pathname, Icon, title }) => (
-            <NavLink
-              key={pathname}
-              pathname={pathname}
-              Icon={Icon}
-              title={title}
-              isExploreRoute={isExploreRoute}
-            />
-          ))
+        ? navLinkItems
+            .filter((item) => {
+              if (env("NEXT_PUBLIC_APP_ENV") === "CLOUD") {
+                return true;
+              } else {
+                return item.pathname !== "agents";
+              }
+            })
+            .map(({ pathname, Icon, title }) => (
+              <NavLink
+                key={pathname}
+                pathname={pathname}
+                Icon={Icon}
+                title={title}
+                isExploreRoute={isExploreRoute}
+                strict={true}
+              />
+            ))
         : null}
     </React.Fragment>
   );

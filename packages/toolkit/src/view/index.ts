@@ -5,3 +5,5 @@ export * from "./pipeline";
 export * from "./pipeline-builder";
 export * from "./profile/user-profile-view";
 export * from "./settings";
+export * from "./artifact";
+export * from "./recipe-editor";

@@ -8,16 +8,17 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useShallow } from "zustand/react/shallow";
 
-import { Dialog, Form, LinkButton, useToast } from "@instill-ai/design-system";
+import { Dialog, Form } from "@instill-ai/design-system";
 
 import {
   InstillStore,
-  Nullable,
   sendAmplitudeData,
   toastInstillError,
+  toastInstillSuccess,
   useAmplitudeCtx,
   useInstillStore,
   useNamespacePipeline,
+  useRouteInfo,
   useUpdateNamespacePipeline,
 } from "../../../../../lib";
 import { Head } from "./Head";
@@ -39,20 +40,11 @@ export const PublishPipelineFormSchema = z.object({
   license: z.string().optional().nullable(),
 });
 
-export const PublishPipelineDialog = ({
-  pipelineName,
-  entity,
-  id,
-}: {
-  pipelineName: Nullable<string>;
-  entity: Nullable<string>;
-  id: Nullable<string>;
-}) => {
+export const PublishPipelineDialog = () => {
   const router = useRouter();
   const { amplitudeIsInit } = useAmplitudeCtx();
   const [isPublishing, setIsPublishing] = React.useState(false);
-
-  const { toast } = useToast();
+  const routeInfo = useRouteInfo();
 
   const {
     accessToken,
@@ -67,9 +59,12 @@ export const PublishPipelineDialog = ({
   });
 
   const pipeline = useNamespacePipeline({
-    namespacePipelineName: pipelineName,
+    namespaceId: routeInfo.data.namespaceId,
+    pipelineId: routeInfo.data.resourceId,
     accessToken,
-    enabled: enabledQuery && !pipelineIsNew && !!pipelineName,
+    enabled: enabledQuery && routeInfo.isSuccess && !pipelineIsNew,
+    view: "VIEW_FULL",
+    shareCode: null,
   });
 
   const updatePipeline = useUpdateNamespacePipeline();
@@ -77,12 +72,21 @@ export const PublishPipelineDialog = ({
   async function handlePublish(
     formData: z.infer<typeof PublishPipelineFormSchema>,
   ) {
-    if (isPublishing || !pipeline.isSuccess || !pipelineName) return;
+    if (
+      isPublishing ||
+      !pipeline.isSuccess ||
+      !routeInfo.isSuccess ||
+      !routeInfo.data.namespaceId ||
+      !routeInfo.data.resourceId
+    ) {
+      return;
+    }
 
     setIsPublishing(true);
 
     const payload: UpdateNamespacePipelineRequest = {
-      namespacePipelineName: pipelineName,
+      namespaceId: routeInfo.data.namespaceId,
+      pipelineId: routeInfo.data.resourceId,
       description: formData.description ?? undefined,
       readme: formData.readme ?? undefined,
       sharing: {
@@ -112,26 +116,18 @@ export const PublishPipelineDialog = ({
         sendAmplitudeData("publish_pipeline");
       }
 
-      toast({
-        size: "large",
+      toastInstillSuccess({
         title: "Pipeline published successfully!",
+        action: {
+          label: "Check Your Pipeline Here",
+          onClick: () => {
+            router.push(
+              `/${routeInfo.data.namespaceId}/pipelines/${routeInfo.data.resourceId}/playground`,
+            );
+          },
+        },
         description:
           "Hooray! Your pipeline has been successfully published to the hub and is now available to our ever-growing community. Keep up the good work! 🎉🚀",
-        variant: "alert-success",
-        action: (
-          <div className="flex flex-row">
-            <LinkButton
-              onClick={() => {
-                router.push(`/${entity}/pipelines/${id}/playground`);
-              }}
-              variant="primary"
-              size="sm"
-              className="mr-auto"
-            >
-              Check Your Pipeline Here
-            </LinkButton>
-          </div>
-        ),
       });
 
       updateDialogPublishPipelineIsOpen(() => false);
@@ -141,7 +137,6 @@ export const PublishPipelineDialog = ({
       toastInstillError({
         title: "Something went wrong when publish the pipeline",
         error: err,
-        toast,
       });
       console.error(err);
     }
@@ -161,11 +156,16 @@ export const PublishPipelineDialog = ({
         <Form.Root {...form}>
           <form onSubmit={form.handleSubmit(handlePublish)}>
             <div className="flex h-full flex-col">
-              <Head entity={entity} id={id} />
+              <Head
+                entity={routeInfo.data.namespaceId}
+                id={routeInfo.data.resourceId}
+              />
               <Metadata
                 form={form}
                 description={
-                  pipeline.isSuccess ? pipeline.data.description : null
+                  pipeline.isSuccess
+                    ? (pipeline.data.description ?? null)
+                    : null
                 }
               />
               <ReadmeEditor

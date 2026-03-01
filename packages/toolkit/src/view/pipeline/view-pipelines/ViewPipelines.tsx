@@ -1,5 +1,6 @@
 "use client";
 
+import type { Visibility } from "instill-sdk";
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import debounce from "lodash.debounce";
@@ -13,7 +14,6 @@ import {
   useInstillStore,
   useRouteInfo,
   useShallow,
-  Visibility,
 } from "../../../lib";
 import { CreatePipelineDialog } from "./CreatePipelineDialog";
 import { PipelinesList } from "./PipelinesList";
@@ -44,12 +44,13 @@ export const ViewPipelines = () => {
   const routeInfo = useRouteInfo();
 
   const pipelines = useInfiniteNamespacePipelines({
-    namespaceName: routeInfo.data.namespaceName,
+    namespaceId: routeInfo.data.namespaceId,
     pageSize: 10,
     accessToken,
     enabledQuery: enabledQuery && routeInfo.isSuccess,
     filter: searchCode ? `q="${searchCode}"` : null,
     visibility: selectedVisibilityOption ?? null,
+    view: "VIEW_FULL",
   });
 
   const debouncedSetSearchCode = React.useMemo(

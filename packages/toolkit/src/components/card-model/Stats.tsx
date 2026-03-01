@@ -1,9 +1,14 @@
 "use client";
 
-import { getModelInstanceTaskToolkit } from "@instill-ai/design-system";
+import type { ModelTask } from "instill-sdk";
 
-//import { convertLongNumberToK } from "../../lib";
-import { ModelTask } from "../../lib";
+import {
+  getModelInstanceTaskToolkit,
+  Icons,
+  Tag,
+} from "@instill-ai/design-system";
+
+import { convertLongNumberToK } from "../../lib";
 import { getHumanReadableStringFromTime } from "../../server";
 
 export type StatsProps = {
@@ -13,23 +18,25 @@ export type StatsProps = {
 };
 
 export const Stats = (props: StatsProps) => {
-  const { task, updatedAt /* , runCount */ } = props;
+  const { task, updatedAt, runCount } = props;
   const { label, getIcon } = getModelInstanceTaskToolkit(task);
 
   return (
     <div className="mt-auto flex w-full flex-row items-center gap-x-4">
-      <div className="flex flex-row items-center gap-x-1 text-sm uppercase text-semantic-fg-secondary">
-        {getIcon("w-4 h-4 stroke-semantic-fg-primary")}
-        {label}
-      </div>
-      {
-        //TODO: uncomment when the run count is available from BE
-        /* <div className="flex flex-row items-center gap-x-1 uppercase text-semantic-fg-secondary">
+      <Tag variant="lightPurple">
+        <div className="flex flex-row items-center gap-x-1 uppercase product-body-text-4-medium">
+          {getIcon(
+            `${["TASK_CHAT", "TASK_CUSTOM"].includes(task) ? "w-3 h-3 stroke-semantic-fg-primary [&>*]:!stroke-semantic-fg-primary" : "w-4 h-4"}`,
+          )}
+          {label}
+        </div>
+      </Tag>
+      <div className="flex flex-row items-center gap-x-1 uppercase text-semantic-fg-secondary font-medium text-sm">
         <Icons.Rocket01 className="w-4 h-4 stroke-semantic-fg-primary" />
-        {convertLongNumberToK(2500)} Runs
-      </div> */
-      }
-      <div className="ml-auto text-sm text-semantic-fg-disabled">
+        {runCount ? convertLongNumberToK(runCount) : 0} Run
+        {runCount !== 1 ? "s" : ""}
+      </div>
+      <div className="ml-auto product-body-text-3-regular text-semantic-node-connector-off">
         Updated {getHumanReadableStringFromTime(updatedAt, Date.now())}
       </div>
     </div>

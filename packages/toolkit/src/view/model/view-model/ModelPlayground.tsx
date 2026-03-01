@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+"use client";
+
+import type { Model, ModelState, Operation } from "instill-sdk";
 import * as React from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { z } from "zod";
 
 import {
@@ -9,10 +12,8 @@ import {
   Icons,
   Nullable,
   TabMenu,
-  useToast,
 } from "@instill-ai/design-system";
 
-import type { ModelTriggerResult } from "../../../lib";
 import {
   CodeBlock,
   LoadingSpin,
@@ -20,33 +21,31 @@ import {
 } from "../../../components";
 import { defaultCodeSnippetStyles } from "../../../constant";
 import {
-  convertSentenceToCamelCase,
-  GeneralRecord,
   InstillStore,
-  Model,
-  ModelState,
-  ModelTask,
-  onTriggerInvalidateCredits,
   sendAmplitudeData,
   toastInstillError,
   useAmplitudeCtx,
+  useAuthenticatedUser,
   useComponentOutputFields,
   useInstillForm,
   useInstillStore,
-  useLastModelTriggerResult,
+  useNamespaceModelVersionOperationResult,
+  useNavigateBackAfterLogin,
   useQueryClient,
+  useRouteInfo,
   useShallow,
-  useTriggerUserModelAsync,
+  useTriggerAsyncNamespaceModelVersion,
   useUserNamespaces,
 } from "../../../lib";
 import { recursiveHelpers } from "../../pipeline-builder";
-import { OPERATION_POLL_TIMEOUT } from "./constants";
+import { getStatusMessage, OPERATION_POLL_TIMEOUT } from "./constants";
 
-type ModelOutputActiveView = "preview" | "json";
+export type ModelOutputActiveView = "preview" | "json";
 
 export type ModelPlaygroundProps = {
   model?: Model;
   modelState: Nullable<ModelState>;
+  onRun: () => void;
 };
 
 const selector = (store: InstillStore) => ({
@@ -55,17 +54,7 @@ const selector = (store: InstillStore) => ({
   navigationNamespaceAnchor: store.navigationNamespaceAnchor,
 });
 
-const convertTaskNameToPayloadPropName = (taskName?: ModelTask) =>
-  taskName
-    ? convertSentenceToCamelCase(
-        // This removes "TASK_" and replaces "_" with a space. The first
-        // argument has and OR operator for matching both substrings. The second
-        // argument is a function with a condition.
-        taskName.replace(/TASK_|_/g, (d) => (d === "TASK_" ? "" : " ")),
-      )
-    : null;
-
-const convertValuesToString = (props: Record<string, unknown>) => {
+export const convertValuesToString = (props: Record<string, unknown>) => {
   const convertedProps: Record<string, unknown> = {};
 
   for (const key in props) {
@@ -83,47 +72,73 @@ const defaultCurrentOperationIdPollingData = {
   name: null,
   timeoutRunning: false,
   isRendered: false,
+  modelVersion: null,
+  targetNamespace: null,
 };
 
 export const ModelPlayground = ({
   model,
   modelState,
+  onRun,
 }: ModelPlaygroundProps) => {
+  const routeInfo = useRouteInfo();
+  const searchParams = useSearchParams();
+  const activeVersion = searchParams.get("version");
   const queryClient = useQueryClient();
   // This ref is used here to store the currently active operation id. It's in
   // ref so we don't have to worry about stale data. As soon as we update the
   // ref, it has new value and the very next render cycle will already have
   // the fresh data.
   const currentOperationIdPollingData = React.useRef<{
-    name: string | null;
+    name: Nullable<string>;
     timeoutRunning: boolean;
     isRendered: boolean;
-  }>({ name: null, timeoutRunning: false, isRendered: false });
-  const { toast } = useToast();
+    modelVersion: Nullable<string>;
+    targetNamespace: Nullable<string>;
+  }>(defaultCurrentOperationIdPollingData);
   const { amplitudeIsInit } = useAmplitudeCtx();
-  const [isModelRunInProgress, setIsModelRunInProgress] = useState(true);
+  const [isModelRunInProgress, setIsModelRunInProgress] = React.useState(true);
   const [outputActiveView, setOutputActiveView] =
-    useState<ModelOutputActiveView>("preview");
-  const taskPropName = useMemo(
-    () => convertTaskNameToPayloadPropName(model?.task),
-    [model],
-  );
-  const [modelRunResult, setModelRunResult] = useState<Record<
+    React.useState<ModelOutputActiveView>("preview");
+  const [modelRunResult, setModelRunResult] = React.useState<Record<
     string,
     unknown
   > | null>(null);
-  const [inputFromExistingResult, setInputFromExistingResult] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const [inputFromExistingResult, setInputFromExistingResult] =
+    React.useState<Record<
+      string,
+      unknown
+      // Stupid hack, because the model name field needs to use the models' name
+    > | null>({ data: { model: model?.id } });
   const [existingTriggerState, setExistingTriggerState] =
-    useState<ModelTriggerResult["operation"]>(null);
+    React.useState<Nullable<Operation>>(null);
   const { accessToken, enabledQuery, navigationNamespaceAnchor } =
     useInstillStore(useShallow(selector));
 
-  const namespaces = useUserNamespaces();
+  const navigateBackAfterLogin = useNavigateBackAfterLogin();
 
-  const isModelTriggerable = useMemo(() => {
+  const me = useAuthenticatedUser({
+    enabled: enabledQuery,
+    accessToken,
+  });
+
+  const userNamespaces = useUserNamespaces();
+
+  const targetNamespace = React.useMemo(() => {
+    if (!userNamespaces.isSuccess || !navigationNamespaceAnchor) {
+      return null;
+    }
+
+    return userNamespaces.data.find(
+      (namespace) => namespace.id === navigationNamespaceAnchor,
+    );
+  }, [
+    userNamespaces.isSuccess,
+    userNamespaces.data,
+    navigationNamespaceAnchor,
+  ]);
+
+  const isModelTriggerable = React.useMemo(() => {
     return accessToken && model && modelState
       ? model.permission.canTrigger &&
           !isModelRunInProgress &&
@@ -136,30 +151,88 @@ export const ModelPlayground = ({
     inputFromExistingResult,
     {
       disabledAll: !isModelTriggerable,
+      stringifyDefaultValue: false,
     },
   );
 
-  const existingModelTriggerResult = useLastModelTriggerResult({
+  const existingModelTriggerResult = useNamespaceModelVersionOperationResult({
     accessToken,
-    modelName: model?.name || null,
-    fullView: true,
-    enabled: enabledQuery,
+    modelId: model?.id || null,
+    namespaceId: routeInfo.data.namespaceId,
+    versionId: activeVersion,
+    view: "VIEW_FULL",
+    enabled:
+      !!activeVersion &&
+      enabledQuery &&
+      userNamespaces.isSuccess &&
+      routeInfo.isSuccess,
+    requesterId: targetNamespace ? targetNamespace.id : null,
   });
 
   const pollForResponse = React.useCallback(async () => {
+    // If the polling is already running, stop
+    if (currentOperationIdPollingData.current.timeoutRunning) {
+      return;
+    }
+
+    // If the data that is being polled is rendered, stop and reset polling running state
+    if (currentOperationIdPollingData.current.isRendered) {
+      currentOperationIdPollingData.current = {
+        ...currentOperationIdPollingData.current,
+        timeoutRunning: false,
+      };
+
+      return;
+    }
+
+    // Set the polling running state to active before making the request and
+    // launching the timeout
+    currentOperationIdPollingData.current = {
+      ...currentOperationIdPollingData.current,
+      timeoutRunning: true,
+    };
+
     await queryClient.invalidateQueries({
       queryKey: ["models", "operation", model?.name],
     });
 
     existingModelTriggerResult.refetch();
-  }, [existingModelTriggerResult.refetch]);
 
-  useEffect(() => {
+    setTimeout(() => {
+      // Resetting the polling running state so it can proceed on the next call
+      currentOperationIdPollingData.current = {
+        ...currentOperationIdPollingData.current,
+        timeoutRunning: false,
+      };
+
+      pollForResponse();
+    }, OPERATION_POLL_TIMEOUT);
+  }, [model?.name, queryClient, existingModelTriggerResult]);
+
+  const resetStatesAndCurrentOperationIdPollingData = () => {
+    currentOperationIdPollingData.current =
+      defaultCurrentOperationIdPollingData;
+    setExistingTriggerState(null);
+    setInputFromExistingResult(null);
+    setModelRunResult(null);
+  };
+
+  React.useEffect(() => {
+    if (
+      activeVersion !== currentOperationIdPollingData.current.modelVersion ||
+      targetNamespace !== currentOperationIdPollingData.current.targetNamespace
+    ) {
+      resetStatesAndCurrentOperationIdPollingData();
+    }
+  }, [activeVersion, targetNamespace]);
+
+  React.useEffect(() => {
     if (
       !accessToken ||
       (existingModelTriggerResult.isSuccess &&
         !currentOperationIdPollingData.current.name &&
-        !existingModelTriggerResult.data.operation)
+        !existingModelTriggerResult.data.operation) ||
+      existingModelTriggerResult.data?.operation?.error
     ) {
       setIsModelRunInProgress(false);
     }
@@ -175,22 +248,23 @@ export const ModelPlayground = ({
       return;
     }
 
+    if (existingModelTriggerResult.data.operation.error) {
+      currentOperationIdPollingData.current = {
+        ...currentOperationIdPollingData.current,
+        timeoutRunning: false,
+        isRendered: false,
+      };
+
+      toastInstillError({
+        title: "Something went wrong when triggering the model",
+        description: existingModelTriggerResult.data.operation.error.message,
+      });
+
+      return;
+    }
+
     if (!existingModelTriggerResult.data?.operation?.done) {
-      if (!currentOperationIdPollingData.current.timeoutRunning) {
-        currentOperationIdPollingData.current = {
-          ...currentOperationIdPollingData.current,
-          timeoutRunning: true,
-        };
-
-        setTimeout(() => {
-          currentOperationIdPollingData.current = {
-            ...currentOperationIdPollingData.current,
-            timeoutRunning: false,
-          };
-
-          pollForResponse();
-        }, OPERATION_POLL_TIMEOUT);
-      }
+      pollForResponse();
     } else {
       if (
         existingTriggerState?.done !==
@@ -202,21 +276,24 @@ export const ModelPlayground = ({
         setExistingTriggerState(existingModelTriggerResult.data.operation);
       }
     }
+    // "toast" update doesn't matter here
+    // and the "pollForResponse" mainly uses ref and a couple of methods that
+    // don't depend on the state of the data
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    existingTriggerState,
     existingModelTriggerResult.isSuccess,
     existingModelTriggerResult.data,
     accessToken,
   ]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!existingTriggerState || !model) {
       return;
     }
 
     if (!existingTriggerState.done) {
-      if (!currentOperationIdPollingData.current.timeoutRunning) {
-        pollForResponse();
-      }
+      pollForResponse();
     } else {
       if (!currentOperationIdPollingData.current.isRendered) {
         currentOperationIdPollingData.current = {
@@ -224,37 +301,43 @@ export const ModelPlayground = ({
           isRendered: true,
         };
 
-        const taskPropName = convertTaskNameToPayloadPropName(
-          model.task,
-        ) as string;
+        if (existingTriggerState.response?.request.taskInputs[0]) {
+          const input = existingTriggerState.response?.request.taskInputs[0];
+          setInputFromExistingResult(convertValuesToString(input));
+        }
 
-        setInputFromExistingResult(
-          convertValuesToString(
-            existingTriggerState.response.request.taskInputs[0][taskPropName],
-          ),
-        );
-        setModelRunResult(
-          existingTriggerState.response.response.taskOutputs[0][taskPropName],
-        );
+        if (existingTriggerState.response?.response.taskOutputs[0]) {
+          const output = existingTriggerState.response?.response.taskOutputs[0];
+          setModelRunResult(output);
+        }
 
         setIsModelRunInProgress(false);
+        onRun();
       }
     }
 
     if (!currentOperationIdPollingData.current.name) {
+      // Updating the polling data based on the current `existingTriggerState`
+      // data so the `pollForResponse` can react accordingly
       currentOperationIdPollingData.current = {
         ...defaultCurrentOperationIdPollingData,
+        isRendered: existingTriggerState.done,
         name: existingTriggerState.name,
+        modelVersion: existingTriggerState.response?.request.version || null,
+        targetNamespace: targetNamespace?.id || null,
       };
     }
-  }, [existingTriggerState]);
+    // this effect should not depend on "pollForResponse"
+    // "onRun" is provided as props and its state doesn't matter here
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingTriggerState, model]);
 
-  const triggerModel = useTriggerUserModelAsync();
+  const triggerModel = useTriggerAsyncNamespaceModelVersion();
 
   async function onRunModel(
     formData: Record<string, unknown> /* z.infer<typeof Schema> */,
   ) {
-    if (!model || !model.name || !taskPropName) return;
+    if (!model || !model.name || !userNamespaces.isSuccess) return;
 
     let parsedData;
 
@@ -271,41 +354,33 @@ export const ModelPlayground = ({
     setIsModelRunInProgress(true);
 
     const input = recursiveHelpers.removeUndefinedAndNullFromArray(
-      recursiveHelpers.replaceNullAndEmptyStringWithUndefined(parsedData),
+      recursiveHelpers.replaceNullAndEmptyStringWithUndefined(
+        recursiveHelpers.parseToNum(parsedData),
+      ),
     );
 
-    const parsedStructuredData: GeneralRecord = input;
-
-    const targetNamespace = namespaces.find(
+    const targetNamespace = userNamespaces.data.find(
       (namespace) => namespace.id === navigationNamespaceAnchor,
     );
 
-    if (!targetNamespace) {
+    if (!targetNamespace || !routeInfo.data.namespaceId || !activeVersion) {
       return;
     }
 
     try {
       const data = await triggerModel.mutateAsync({
-        modelName: model.name,
+        modelId: model.id,
+        namespaceId: routeInfo.data.namespaceId,
         accessToken,
-        payload: {
-          taskInputs: [
-            {
-              [taskPropName]: parsedStructuredData,
-            },
-          ],
-        },
-        requesterUid: targetNamespace ? targetNamespace.uid : undefined,
-      });
-
-      onTriggerInvalidateCredits({
-        ownerName: targetNamespace.name ?? null,
-        namespaceNames: namespaces.map((namespace) => namespace.name),
-        queryClient,
+        taskInputs: [input],
+        requesterId: targetNamespace ? targetNamespace.id : undefined,
+        versionId: activeVersion,
       });
 
       if (amplitudeIsInit) {
-        sendAmplitudeData("trigger_model");
+        sendAmplitudeData("trigger_model", {
+          page_url: window.location.href,
+        });
       }
 
       currentOperationIdPollingData.current = {
@@ -314,13 +389,13 @@ export const ModelPlayground = ({
       };
 
       setExistingTriggerState(data.operation);
+      onRun();
     } catch (error) {
       setIsModelRunInProgress(false);
 
       toastInstillError({
         title: "Something went wrong when triggering the model",
         error,
-        toast,
       });
     }
   }
@@ -331,6 +406,7 @@ export const ModelPlayground = ({
     mode: "demo",
     schema: model?.outputSchema || {},
     data: modelRunResult || null,
+    forceFormatted: true,
   });
 
   return (
@@ -355,19 +431,33 @@ export const ModelPlayground = ({
           >
             <div className="mb-5 flex flex-col gap-y-5">{fields}</div>
             <div className="flex flex-row-reverse">
-              <Button
-                disabled={!isModelTriggerable || isModelRunInProgress}
-                type="submit"
-                size="md"
-                variant="secondaryColour"
-              >
-                Run
-                {isModelRunInProgress ? (
-                  <LoadingSpin className="ml-2 !h-4 !w-4 !text-semantic-accent-hover" />
-                ) : (
-                  <Icons.Play className="ml-2 h-4 w-4 stroke-semantic-accent-hover" />
-                )}
-              </Button>
+              {me.isSuccess ? (
+                <Button
+                  disabled={!isModelTriggerable || isModelRunInProgress}
+                  type="submit"
+                  size="md"
+                  variant="secondaryColour"
+                >
+                  Run
+                  {isModelRunInProgress ? (
+                    <LoadingSpin className="ml-2 !h-4 !w-4 !text-semantic-accent-hover" />
+                  ) : (
+                    <Icons.Play className="ml-2 h-4 w-4 stroke-semantic-accent-hover" />
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    navigateBackAfterLogin();
+                  }}
+                  className="!h-8 !normal-case"
+                  variant="secondaryColour"
+                  size="md"
+                >
+                  Log in to Run
+                </Button>
+              )}
             </div>
           </form>
         </Form.Root>
@@ -375,7 +465,15 @@ export const ModelPlayground = ({
       <div className="flex w-1/2 flex-col pb-6 pl-6">
         <ModelSectionHeader className="mb-3">Output</ModelSectionHeader>
         {isModelRunInProgress ? (
-          <LoadingSpin className="!m-0 !text-semantic-fg-secondary" />
+          <div className="flex flex-col items-center justify-center">
+            <LoadingSpin className="!text-semantic-accent-hover !mb-10 !w-20 !h-20" />
+            <p className="text-semantic-fg-primary product-headings-heading-2 mb-2">
+              Running
+            </p>
+            <div className="text-center product-body-text-2-regular">
+              {getStatusMessage(modelState, model?.hardware || "CPU")}
+            </div>
+          </div>
         ) : modelRunResult ? (
           <React.Fragment>
             <TabMenu.Root

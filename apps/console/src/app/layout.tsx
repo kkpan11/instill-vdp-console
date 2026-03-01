@@ -1,10 +1,10 @@
 import cn from "clsx";
+import * as React from "react";
 
 import { env } from "@instill-ai/toolkit/server";
 
 import "../styles/global.css";
 import "../styles/github-markdown.css";
-import "@instill-ai/design-system/index.css";
 import "@instill-ai/design-tokens/dist/theme/root.css";
 import "@instill-ai/design-tokens/dist/theme/light.css";
 import "@instill-ai/design-tokens/dist/theme/dark.css";
@@ -14,6 +14,7 @@ import "../styles/tip-tap.css";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 
 import { RootProvider } from "./(providers)/root-provider";
+import { SonnerToasterWithPosition } from "@instill-ai/toolkit";
 
 const ibmPlexSans = IBM_Plex_Sans({
   style: ["italic", "normal"],
@@ -37,6 +38,19 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn(ibmPlexSans.variable, ibmPlexMono.variable)}>
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link
+          rel="icon"
+          href="/images/favicon-16x16.png"
+          type="image/png"
+          sizes="16x16"
+        />
+        <link
+          rel="icon"
+          href="/images/favicon-32x32.png"
+          type="image/png"
+          sizes="32x32"
+        />
         <meta
           property="og:image"
           content={`${env(
@@ -53,7 +67,12 @@ export default function RootLayout({
         <script src="/__env.js" />
       </head>
       <body className="overflow-y-hidden">
-        <RootProvider>{children}</RootProvider>
+        <RootProvider
+          featureFlagChatEnabled={process.env.FEATURE_FLAG_CHAT_ENABLED === "1"}
+        >
+          <SonnerToasterWithPosition />
+          <React.Suspense>{children}</React.Suspense>
+        </RootProvider>
       </body>
     </html>
   );

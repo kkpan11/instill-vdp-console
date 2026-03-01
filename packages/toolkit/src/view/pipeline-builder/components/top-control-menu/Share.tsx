@@ -26,9 +26,12 @@ export const Share = () => {
   const routeInfo = useRouteInfo();
 
   const pipeline = useNamespacePipeline({
-    namespacePipelineName: routeInfo.data.pipelineName,
+    namespaceId: routeInfo.data.namespaceId,
+    pipelineId: routeInfo.data.resourceId,
     accessToken,
     enabled: enabledQuery && routeInfo.isSuccess,
+    view: "VIEW_FULL",
+    shareCode: null,
   });
 
   return (
@@ -49,9 +52,10 @@ export const Share = () => {
           namespaceId={routeInfo.data.namespaceId}
           id={routeInfo.data.resourceId}
           ownerDisplayName={
+            // In CE, owner is always a user (organizations are EE-only)
             "user" in pipeline.data.owner
               ? (pipeline.data.owner.user.profile?.displayName ?? null)
-              : (pipeline.data.owner.organization.profile?.displayName ?? null)
+              : null
           }
         />
       ) : null}

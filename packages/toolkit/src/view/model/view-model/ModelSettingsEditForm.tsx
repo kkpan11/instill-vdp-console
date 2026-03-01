@@ -1,44 +1,43 @@
-import { useMemo, useState } from "react";
+"use client";
+
+import type {
+  Model,
+  UpdateNamespaceModelRequest,
+  Visibility,
+} from "instill-sdk";
+import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { InstillNameInterpreter } from "instill-sdk";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import {
   Button,
   Form,
-  getModelHardwareToolkit,
   Icons,
   Input,
   RadioGroup,
   Select,
   Textarea,
-  toast,
 } from "@instill-ai/design-system";
 
 import { LoadingSpin, UploadImageFieldWithCrop } from "../../../components";
 import { InstillErrors, InstillModelVisibility } from "../../../constant";
 import {
   InstillStore,
-  Model,
   sendAmplitudeData,
   toastInstillError,
-  UpdateUserModelPayload,
+  toastInstillSuccess,
   useAmplitudeCtx,
   useInstillStore,
-  useModelRegions,
+  useModelAvailableRegions,
   useShallow,
-  useUpdateUserModel,
-  Visibility,
+  useUpdateNamespaceModel,
 } from "../../../lib";
 
 export type ModelSettingsEditFormProps = {
   model?: Model;
   onUpdate: () => void;
-};
-
-type Option = {
-  value: string;
-  title: string;
 };
 
 const EditModelSchema = z
@@ -47,12 +46,11 @@ const EditModelSchema = z
     sourceUrl: z.literal("").or(z.string().url()),
     documentationUrl: z.literal("").or(z.string().url()),
     license: z.literal("").or(z.string().url()),
-    visibility: z
-      .enum(InstillModelVisibility)
-      .default(InstillModelVisibility[0]),
+    visibility: z.enum(InstillModelVisibility),
     hardware: z.string(),
     hardwareCustom: z.string().optional(),
     profileImage: z.string().optional(),
+    tags: z.string().optional(),
     //configuration: z.object({}),
   })
   .superRefine((state, ctx) => {
@@ -67,44 +65,60 @@ const EditModelSchema = z
 
 const selector = (store: InstillStore) => ({
   accessToken: store.accessToken,
+  enabledQuery: store.enabledQuery,
 });
 
 export const ModelSettingsEditForm = ({
   model,
   onUpdate,
 }: ModelSettingsEditFormProps) => {
-  const { accessToken } = useInstillStore(useShallow(selector));
-  const [hardwareCustomValue, setHardwareCustomValue] = useState<string>("");
-  const [updating, setUpdating] = useState(false);
+  const { accessToken, enabledQuery } = useInstillStore(useShallow(selector));
+  const [hardwareCustomValue, setHardwareCustomValue] =
+    React.useState<string>("");
+  const [updating, setUpdating] = React.useState(false);
   const { amplitudeIsInit } = useAmplitudeCtx();
 
-  const modelRegions = useModelRegions({ accessToken });
+  const modelRegions = useModelAvailableRegions({ accessToken, enabledQuery });
 
-  const hardwareOptions = useMemo(() => {
+  const hardwareOptions = React.useMemo(() => {
     if (!modelRegions.data || !model) {
       return [];
     }
 
-    return modelRegions.data
-      .find((item) => item.regionName === model.region)
-      ?.hardware.reduce(
-        (acc: Option[], hardwareName) => [
-          ...acc,
-          {
-            value: hardwareName,
-            title: getModelHardwareToolkit(hardwareName) || "Unknown",
-          },
-        ],
-        [],
-      );
+    const targetModelRegion = modelRegions.data.find(
+      (item) => item.regionName === model.region,
+    );
+
+    return (
+      targetModelRegion?.hardware.map((item) => ({
+        ...item,
+        value: item.value || "Custom",
+      })) ?? []
+    );
   }, [modelRegions, model]);
 
-  const defaultValues = useMemo(() => {
-    if (!model) {
+  React.useEffect(() => {
+    if (hardwareCustomValue || !model || !hardwareOptions.length) {
+      return;
+    }
+
+    const targetHardware = hardwareOptions.find(
+      (h) => h.value === model.hardware,
+    );
+
+    if (!targetHardware) {
+      setHardwareCustomValue(model.hardware);
+    }
+  }, [model, hardwareOptions, hardwareCustomValue]);
+
+  const defaultValues = React.useMemo(() => {
+    if (!model || hardwareOptions.length === 0) {
       return undefined;
     }
 
-    const hardwareName = getModelHardwareToolkit(model.hardware);
+    const targetHardware = hardwareOptions.find(
+      (h) => h.value === model.hardware,
+    );
 
     return {
       description: model.description,
@@ -115,11 +129,12 @@ export const ModelSettingsEditForm = ({
         Visibility,
         "VISIBILITY_UNSPECIFIED"
       >,
-      hardware: hardwareName === null ? "Custom" : model.hardware,
-      hardwareCustom: hardwareName === null ? model.hardware : "",
+      hardware: targetHardware ? targetHardware.value : "Custom",
+      hardwareCustom: targetHardware ? "" : model.hardware,
       profileImage: model.profileImage,
+      tags: model.tags.join(", "),
     };
-  }, [model]);
+  }, [model, hardwareOptions]);
 
   const form = useForm<z.infer<typeof EditModelSchema>>({
     resolver: zodResolver(EditModelSchema),
@@ -127,16 +142,25 @@ export const ModelSettingsEditForm = ({
     values: defaultValues,
     disabled: !model?.permission.canEdit,
   });
-  const updateUserModel = useUpdateUserModel();
+
+  const updateNamespaceModel = useUpdateNamespaceModel();
 
   async function onSubmit(data: z.infer<typeof EditModelSchema>) {
     if (!model) {
       return;
     }
 
+    const { namespaceId } = InstillNameInterpreter.model(model.name);
+
+    if (!namespaceId) {
+      return;
+    }
+
     setUpdating(true);
 
-    const payload: UpdateUserModelPayload = {
+    const payload: UpdateNamespaceModelRequest = {
+      namespaceId,
+      modelId: model.id,
       description: data.description,
       sourceUrl: data.sourceUrl,
       documentationUrl: data.documentationUrl,
@@ -145,19 +169,23 @@ export const ModelSettingsEditForm = ({
       hardware:
         data.hardware === "Custom" ? data.hardwareCustom || "" : data.hardware,
       profileImage: data.profileImage,
+      tags:
+        data.tags
+          ?.trim()
+          .toLowerCase()
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) => item) || [],
     };
 
     try {
-      await updateUserModel.mutateAsync({
-        name: model.name,
+      await updateNamespaceModel.mutateAsync({
         payload,
         accessToken,
       });
 
-      toast({
+      toastInstillSuccess({
         title: "Model was successfully updated",
-        variant: "notification-success",
-        size: "small",
       });
 
       if (amplitudeIsInit) {
@@ -171,7 +199,6 @@ export const ModelSettingsEditForm = ({
       toastInstillError({
         title: "Failed to update model",
         error,
-        toast,
       });
     }
   }
@@ -293,6 +320,7 @@ export const ModelSettingsEditForm = ({
               form={form}
               title="Cover image"
             />
+            {/* INS-5438: We tempoarily hide the private option for better visibility */}
             <RadioGroup.Root
               onValueChange={(
                 value: Exclude<Visibility, "VISIBILITY_UNSPECIFIED">,
@@ -300,7 +328,7 @@ export const ModelSettingsEditForm = ({
                 form.setValue("visibility", value);
               }}
               className="!flex flex-col gap-y-4"
-              defaultValue={model?.visibility || InstillModelVisibility[0]}
+              defaultValue={model?.visibility || InstillModelVisibility[1]}
             >
               <div className="flex items-center space-x-3">
                 <label htmlFor="radio-public" className="flex flex-row gap-x-3">
@@ -320,7 +348,7 @@ export const ModelSettingsEditForm = ({
                   </div>
                 </label>
               </div>
-              <div className="flex items-center space-x-3">
+              {/* <div className="flex items-center space-x-3">
                 <label
                   htmlFor="radio-private"
                   className="flex flex-row gap-x-3"
@@ -340,7 +368,7 @@ export const ModelSettingsEditForm = ({
                     </p>
                   </div>
                 </label>
-              </div>
+              </div> */}
             </RadioGroup.Root>
             <Form.Field
               control={form.control}
@@ -399,6 +427,40 @@ export const ModelSettingsEditForm = ({
                     <Form.Message />
                     <p className="text-xs text-semantic-fg-secondary">
                       {`This will affect the model's performance and operational costs. Please refer to the documentation for detailed pricing information.`}
+                    </p>
+                  </Form.Item>
+                );
+              }}
+            />
+            <Form.Field
+              control={form.control}
+              name="tags"
+              render={({ field }) => {
+                return (
+                  <Form.Item className="flex flex-col gap-y-2.5 md:w-1/2">
+                    <Form.Label className="product-body-text-3-semibold">
+                      Tags
+                    </Form.Label>
+                    <Form.Control>
+                      <Input.Root>
+                        <Input.Core
+                          {...field}
+                          className="!product-body-text-2-regular"
+                          type="text"
+                          placeholder="Add a tag"
+                          required={false}
+                          value={field.value || ""}
+                          onChange={(event) =>
+                            field.onChange(
+                              event.target.value.toLocaleLowerCase(),
+                            )
+                          }
+                        />
+                      </Input.Root>
+                    </Form.Control>
+                    <Form.Message />
+                    <p className="text-xs text-semantic-fg-secondary">
+                      {`Separate tags with a comma.`}
                     </p>
                   </Form.Item>
                 );

@@ -1,17 +1,18 @@
 "use client";
 
 import type { TriggerNamespacePipelineRequest } from "instill-sdk";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { getInstillAPIClient } from "../../sdk-helper";
 import { Nullable } from "../../type";
-import { getInstillAPIClient } from "../../vdp-sdk";
 
 export function useTriggerNamespacePipeline() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async (
-      props: TriggerNamespacePipelineRequest & {
+      props: Omit<TriggerNamespacePipelineRequest, "streaming"> & {
         accessToken: Nullable<string>;
-        triggerNamespaceName?: string;
       },
     ) => {
       const { accessToken, ...payload } = props;
@@ -20,10 +21,15 @@ export function useTriggerNamespacePipeline() {
         accessToken: accessToken ?? undefined,
       });
 
-      const response =
-        await client.vdp.trigger.triggerNamespacePipeline(payload);
+      const response = await client.pipeline.trigger.triggerNamespacePipeline({
+        ...payload,
+        isConsole: true,
+      });
 
       return Promise.resolve(response);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pipeline-runs"] });
     },
   });
 }

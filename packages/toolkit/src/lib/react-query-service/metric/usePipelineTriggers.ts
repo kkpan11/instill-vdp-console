@@ -1,20 +1,20 @@
+"use client";
+
+import type { Nullable } from "instill-sdk";
 import { useQuery } from "@tanstack/react-query";
 
 import { env } from "../../../server";
-import { Nullable } from "../../type";
-import { getInstillAPIClient } from "../../vdp-sdk";
+import { getInstillAPIClient } from "../../sdk-helper";
 
 export function usePipelineTriggers({
   enabled,
   accessToken,
   filter,
-  retry,
   filterId,
 }: {
   enabled: boolean;
   accessToken: Nullable<string>;
   filter: Nullable<string>;
-  retry?: false | number;
   filterId: Nullable<string>;
 }) {
   const queryKey = ["metrics", "pipelines", "triggers"];
@@ -32,7 +32,7 @@ export function usePipelineTriggers({
 
       const client = getInstillAPIClient({ accessToken });
 
-      const triggers = await client.core.metric.listPipelineTriggers({
+      const triggers = await client.mgmt.metric.listPipelineTriggers({
         pageSize: env("NEXT_PUBLIC_QUERY_PAGE_SIZE"),
         filter: filter ?? undefined,
         enablePagination: false,
@@ -41,6 +41,5 @@ export function usePipelineTriggers({
       return Promise.resolve(triggers);
     },
     enabled,
-    retry: retry === false ? false : retry ? retry : 3,
   });
 }
